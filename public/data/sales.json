@@ -1,0 +1,42 @@
+[
+  {
+    "id": "SALE-20260629-001",
+    "date": "2026-06-29T09:30:00.000Z",
+    "items": [
+      {
+        "productId": 1,
+        "name": "Iced Coffee Latte",
+        "quantity": 3,
+        "unitPrice": 2.75
+      },
+      {
+        "productId": 5,
+        "name": "Sea Salt Chips",
+        "quantity": 2,
+        "unitPrice": 1.5
+      }
+    ],
+    "subtotal": 11.25,
+    "discount": 1,
+    "tax": 0.72,
+    "grandTotal": 10.97,
+    "paymentMethod": "Cash"
+  },
+  {
+    "id": "SALE-20260629-002",
+    "date": "2026-06-29T11:05:00.000Z",
+    "items": [
+      {
+        "productId": 7,
+        "name": "Fresh Milk 1L",
+        "quantity": 4,
+        "unitPrice": 1.8
+      }
+    ],
+    "subtotal": 7.2,
+    "discount": 0,
+    "tax": 0.5,
+    "grandTotal": 7.7,
+    "paymentMethod": "QR Payment"
+  }
+]

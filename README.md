@@ -1,84 +1,89 @@
-# retail-pos
+# Retail POS System
 
-Scaffolded with Vuetify CLI.
+A Vue 3 + Vite + Vuetify frontend for a retail point-of-sale workflow. This version does not use a backend API yet. It loads mock API data from JSON files in `public/data` and stores runtime cart, stock, and completed sales data in `localStorage`.
 
-## ❗️ Documentation
+## Features
 
-- Primary docs: https://vuetifyjs.com/
-- Getting started guide: https://vuetifyjs.com/en/getting-started/installation/
-- Community support: https://community.vuetifyjs.com/
-- Issue tracker: https://issues.vuetifyjs.com/
+- Home dashboard with total products, today's sales, total orders, and total revenue
+- POS product grid with image, name, code, barcode, category, price, and stock
+- Product search by name, product code, or barcode
+- Category filtering from mock JSON data
+- Add-to-cart flow with stock validation and out-of-stock warnings
+- Cart quantity controls, item removal, and clear-cart action
+- Discount, tax, payment method, and grand-total calculation
+- Checkout validation, completed order storage, product stock reduction, and receipt dialog
+- Responsive Vuetify layouts for desktop and mobile
+- Light-blue Vuetify themes for light and dark mode
 
-## 🧱 Stack
+## Mock Data
 
-- Framework: Vue 3 + Vite
-- UI Library: Vuetify
-- Language: TypeScript
-- Package manager: npm
+Mock API files live in `public/data`:
 
-## 🧭 Start Here
+- `products.json`
+- `categories.json`
+- `carts.json`
+- `sales.json`
+- `users.json`
 
-- Main entry: `src/main.ts`
-- Main app component: `src/App.vue`
-- Main styles: `src/styles/`
-- Plugin setup: `src/plugins/`
+The frontend loads them with `fetch('/data/filename.json')`. Completed sales, active cart items, and updated product stock are saved in browser `localStorage`.
 
-## 📁 Project Structure
+## Project Structure
 
-- `src/main.ts` — application entry point
-- `src/App.vue` — root component
-- `src/components/` — reusable Vue components
-- `src/plugins/` — plugin registration and setup
-- `src/styles/` — global styles and theme settings
-- `public/` — static public files
+```text
+src/
+  components/
+    AppHeader.vue
+    ProductCard.vue
+    ReceiptDialog.vue
+  composables/
+    useCart.ts
+    useMockApi.ts
+  pages/
+    HomePage.vue
+    PosPage.vue
+    CartPage.vue
+  plugins/
+    index.ts
+    vuetify.ts
+  router/
+    index.ts
+  types/
+    pos.ts
+  utils/
+    currency.ts
+  App.vue
+  main.ts
+public/
+  data/
+    products.json
+    categories.json
+    carts.json
+    sales.json
+    users.json
+```
 
-## ✨ Enabled Features
-
-- ESLint
-- Pinia
-- Vue I18n
-- Vuetify MCP
-- Vue Router
-- Tailwind CSS
-
-## 💿 Install
-
-Use your selected package manager (npm) to install dependencies:
+## Install
 
 ```bash
 npm install
 ```
 
-## 🚀 Quick Start
+## Run Development Server
 
 ```bash
-npm install
 npm run dev
 ```
 
-## 🏗️ Build
+Open the local URL printed by Vite, usually `http://localhost:3000/`.
+
+## Build
 
 ```bash
 npm run build
 ```
 
-## 🧪 Available Scripts
+For a Vite-only production bundle without TypeScript project checking:
 
-- `npm run dev`
-- `npm run build`
-- `npm run preview`
-- `npm run build-only`
-- `npm run type-check`
-- `npm run lint`
-- `npm run lint:fix`
-- `npm run mcp`
-- `npm run mcp:revert`
-
-## 💪 Support Vuetify Development
-
-This project uses Vuetify - an MIT licensed Open Source project. We are glad to welcome contributors and any support for ongoing development:
-
-- Contribute to Vuetify and ecosystem projects: https://github.com/vuetifyjs
-- Request enterprise support: https://support.vuetifyjs.com/
-- Sponsor on GitHub: https://github.com/sponsors/vuetifyjs
-- Support on Open Collective: https://opencollective.com/vuetify
+```bash
+npm run build-only
+```

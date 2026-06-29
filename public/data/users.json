@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "name": "Store Admin",
+    "email": "admin@retailpos.local",
+    "role": "admin"
+  },
+  {
+    "id": 2,
+    "name": "Cashier One",
+    "email": "cashier@retailpos.local",
+    "role": "cashier"
+  }
+]

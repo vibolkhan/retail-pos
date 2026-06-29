@@ -1,0 +1,102 @@
+[
+  {
+    "id": 1,
+    "name": "Iced Coffee Latte",
+    "code": "BEV-001",
+    "barcode": "8850001000011",
+    "categoryId": 1,
+    "price": 2.75,
+    "stock": 48,
+    "image": "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    "id": 2,
+    "name": "Sparkling Water",
+    "code": "BEV-002",
+    "barcode": "8850001000028",
+    "categoryId": 1,
+    "price": 1.25,
+    "stock": 72,
+    "image": "https://images.unsplash.com/photo-1560512823-829485b8bf24?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    "id": 3,
+    "name": "Butter Croissant",
+    "code": "BAK-001",
+    "barcode": "8850002000010",
+    "categoryId": 2,
+    "price": 1.95,
+    "stock": 18,
+    "image": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    "id": 4,
+    "name": "Whole Wheat Bread",
+    "code": "BAK-002",
+    "barcode": "8850002000027",
+    "categoryId": 2,
+    "price": 2.4,
+    "stock": 10,
+    "image": "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    "id": 5,
+    "name": "Sea Salt Chips",
+    "code": "SNK-001",
+    "barcode": "8850003000019",
+    "categoryId": 3,
+    "price": 1.5,
+    "stock": 35,
+    "image": "https://images.unsplash.com/photo-1613919113640-25732ec5e61f?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    "id": 6,
+    "name": "Chocolate Cookies",
+    "code": "SNK-002",
+    "barcode": "8850003000026",
+    "categoryId": 3,
+    "price": 2.15,
+    "stock": 0,
+    "image": "https://images.unsplash.com/photo-1499636136210-6f4ee915583e?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    "id": 7,
+    "name": "Fresh Milk 1L",
+    "code": "DAI-001",
+    "barcode": "8850004000018",
+    "categoryId": 4,
+    "price": 1.8,
+    "stock": 24,
+    "image": "https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    "id": 8,
+    "name": "Greek Yogurt",
+    "code": "DAI-002",
+    "barcode": "8850004000025",
+    "categoryId": 4,
+    "price": 1.35,
+    "stock": 30,
+    "image": "https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    "id": 9,
+    "name": "Dish Soap",
+    "code": "HOU-001",
+    "barcode": "8850005000017",
+    "categoryId": 5,
+    "price": 3.25,
+    "stock": 16,
+    "image": "https://images.unsplash.com/photo-1585421514284-efb74c2b69ba?auto=format&fit=crop&w=600&q=80"
+  },
+  {
+    "id": 10,
+    "name": "Paper Towels",
+    "code": "HOU-002",
+    "barcode": "8850005000024",
+    "categoryId": 5,
+    "price": 4.95,
+    "stock": 12,
+    "image": "https://images.unsplash.com/photo-1584556812952-905ffd0c611a?auto=format&fit=crop&w=600&q=80"
+  }
+]

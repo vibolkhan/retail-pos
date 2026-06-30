@@ -1,5 +1,7 @@
 import type { CartItem, Category, Product, Sale, User } from '@/types/pos'
 
+export type ProductInventoryPayload = Omit<Product, 'id' | 'categoryName'>
+
 async function request<T> (path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, options)
 
@@ -21,6 +23,26 @@ export async function getCategories () {
 
 export async function getProducts () {
   return request<Product[]>('/api/products')
+}
+
+export async function getInventoryProducts () {
+  return request<Product[]>('/api/products?includeInactive=true')
+}
+
+export async function createProductInventory (product: ProductInventoryPayload) {
+  return request<Product>('/api/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(product),
+  })
+}
+
+export async function updateProductInventory (product: ProductInventoryPayload & Pick<Product, 'id'>) {
+  return request<Product>(`/api/products/${product.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(product),
+  })
 }
 
 export async function getCart () {

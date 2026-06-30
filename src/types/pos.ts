@@ -13,6 +13,7 @@ export interface Product {
   price: number
   stock: number
   image: string
+  isActive: boolean
 }
 
 export interface CartItem {

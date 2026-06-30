@@ -1,22 +1,5 @@
 <template>
   <v-container class="py-6" fluid>
-    <div
-      class="d-flex flex-column flex-md-row align-md-center justify-space-between ga-4 mb-5"
-    >
-      <div>
-        <h1 class="text-h4 font-weight-bold mb-1">Point of Sale</h1>
-
-        <p class="text-body-2 text-medium-emphasis mb-0">
-          Search products, filter by category, and add available stock to the
-          cart.
-        </p>
-      </div>
-
-      <v-btn color="primary" prepend-icon="mdi-cart" to="/cart" variant="flat">
-        View Cart
-      </v-btn>
-    </div>
-
     <v-row>
       <v-col cols="12" md="8">
         <v-text-field

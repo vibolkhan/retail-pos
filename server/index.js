@@ -26,6 +26,75 @@ function parseCart (row) {
   return row ? JSON.parse(row.items) : []
 }
 
+function parseProduct (row) {
+  return {
+    ...row,
+    categoryName: row.categoryName || 'Uncategorized',
+    isActive: Boolean(row.isActive),
+  }
+}
+
+function readProductInput (body) {
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  const code = typeof body.code === 'string' ? body.code.trim() : ''
+  const barcode = typeof body.barcode === 'string' ? body.barcode.trim() : ''
+  const image = typeof body.image === 'string' ? body.image.trim() : ''
+  const categoryId = Number(body.categoryId)
+  const price = Number(body.price)
+  const stock = Number(body.stock)
+  const isActive = typeof body.isActive === 'boolean' ? body.isActive : true
+
+  if (!name) {
+    return { error: 'Product name is required' }
+  }
+  if (!code) {
+    return { error: 'Product code is required' }
+  }
+  if (!barcode) {
+    return { error: 'Barcode is required' }
+  }
+  if (!Number.isInteger(categoryId) || categoryId <= 0) {
+    return { error: 'Category is required' }
+  }
+  if (!Number.isFinite(price) || price < 0) {
+    return { error: 'Price must be zero or higher' }
+  }
+  if (!Number.isInteger(stock) || stock < 0) {
+    return { error: 'Stock must be a non-negative whole number' }
+  }
+  if (!image) {
+    return { error: 'Product image is required' }
+  }
+
+  return {
+    product: {
+      name,
+      code,
+      barcode,
+      categoryId,
+      price,
+      stock,
+      image,
+      isActive,
+    },
+  }
+}
+
+async function ensureCategoryExists (categoryId) {
+  return db.get('SELECT id FROM categories WHERE id = ?', categoryId)
+}
+
+async function findProduct (productId) {
+  const row = await db.get(`
+    SELECT products.*, categories.name AS categoryName
+    FROM products
+    LEFT JOIN categories ON categories.id = products.categoryId
+    WHERE products.id = ?
+  `, productId)
+
+  return row ? parseProduct(row) : null
+}
+
 app.get('/api/categories', async (req, res) => {
   try {
     const rows = await db.all('SELECT * FROM categories ORDER BY id ASC')
@@ -37,17 +106,98 @@ app.get('/api/categories', async (req, res) => {
 })
 
 app.get('/api/products', async (req, res) => {
+  const includeInactive = req.query.includeInactive === 'true'
+
   try {
     const rows = await db.all(`
       SELECT products.*, categories.name AS categoryName
       FROM products
       LEFT JOIN categories ON categories.id = products.categoryId
+      WHERE ? OR products.isActive = 1
       ORDER BY products.id ASC
-    `)
-    res.json(rows.map(row => ({ ...row, categoryName: row.categoryName || 'Uncategorized' })))
+    `, includeInactive ? 1 : 0)
+    res.json(rows.map(row => parseProduct(row)))
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Failed to fetch products' })
+  }
+})
+
+app.post('/api/products', async (req, res) => {
+  const input = readProductInput(req.body)
+
+  if (input.error) {
+    return res.status(400).json({ error: input.error })
+  }
+
+  try {
+    const category = await ensureCategoryExists(input.product.categoryId)
+    if (!category) {
+      return res.status(400).json({ error: 'Category was not found' })
+    }
+
+    const result = await db.run(
+      `INSERT INTO products (name, code, barcode, categoryId, price, stock, image, isActive)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      input.product.name,
+      input.product.code,
+      input.product.barcode,
+      input.product.categoryId,
+      input.product.price,
+      input.product.stock,
+      input.product.image,
+      input.product.isActive ? 1 : 0,
+    )
+
+    const product = await findProduct(result.lastID)
+    res.status(201).json(product)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ error: 'Failed to create product' })
+  }
+})
+
+app.patch('/api/products/:id', async (req, res) => {
+  const productId = Number(req.params.id)
+  const input = readProductInput(req.body)
+
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return res.status(400).json({ error: 'Invalid product id' })
+  }
+  if (input.error) {
+    return res.status(400).json({ error: input.error })
+  }
+
+  try {
+    const category = await ensureCategoryExists(input.product.categoryId)
+    if (!category) {
+      return res.status(400).json({ error: 'Category was not found' })
+    }
+
+    const result = await db.run(
+      `UPDATE products
+       SET name = ?, code = ?, barcode = ?, categoryId = ?, price = ?, stock = ?, image = ?, isActive = ?
+       WHERE id = ?`,
+      input.product.name,
+      input.product.code,
+      input.product.barcode,
+      input.product.categoryId,
+      input.product.price,
+      input.product.stock,
+      input.product.image,
+      input.product.isActive ? 1 : 0,
+      productId,
+    )
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Product was not found' })
+    }
+
+    const product = await findProduct(productId)
+    res.json(product)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ error: 'Failed to update product' })
   }
 })
 

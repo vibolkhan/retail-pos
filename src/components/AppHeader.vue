@@ -6,17 +6,7 @@
 
     <v-spacer />
 
-    <v-btn
-      v-for="item in navigationItems"
-      :key="item.to"
-      :active="route.path === item.to"
-      class="d-none d-sm-inline-flex"
-      :prepend-icon="item.icon"
-      :to="item.to"
-      variant="text"
-    >
-      {{ item.title }}
-    </v-btn>
+    
 
     <v-btn
       aria-label="Toggle theme"
@@ -42,17 +32,19 @@
       </v-badge>
     </v-btn>
   </v-app-bar>
-
-  <v-bottom-navigation class="d-sm-none" color="primary" grow>
-    <v-btn
-      v-for="item in navigationItems"
-      :key="item.to"
-      :to="item.to"
+<v-bottom-navigation class="d-sm-none" color="primary" grow>
+  <v-btn
+    v-for="item in navigationItems"
+    :key="item.to"
+    :to="item.to"
+    class="flex-column"
+    variant="text"
     >
-      <v-icon :icon="item.icon" />
-      <span>{{ item.title }}</span>
-    </v-btn>
-  </v-bottom-navigation>
+    <v-icon :icon="item.icon" />
+    <span class="text-caption">{{ item.title }}</span>
+  </v-btn>
+</v-bottom-navigation>
+
 </template>
 
 <script lang="ts" setup>
@@ -70,6 +62,7 @@
     { title: 'Home', icon: 'mdi-view-dashboard', to: '/' },
     { title: 'POS', icon: 'mdi-cash-register', to: '/pos' },
     { title: 'Cart', icon: 'mdi-cart', to: cartRoute },
+    { title: 'Inventory', icon: 'mdi-warehouse', to: '/inventory' },
     { title: 'Sales', icon: 'mdi-history', to: '/sales' },
   ]
 

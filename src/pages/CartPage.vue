@@ -1,35 +1,12 @@
 <template>
-  <v-container class="py-6" fluid>
-    <div
-      class="d-flex flex-column flex-md-row align-md-center justify-space-between ga-4 mb-5"
-    >
-      <div>
-        <h1 class="text-h4 font-weight-bold mb-1">Cart</h1>
-
-        <p class="text-body-2 text-medium-emphasis mb-0">
-          Review items, apply discount and tax, then confirm payment.
-        </p>
-      </div>
-
-      <v-btn
-        color="error"
-        :disabled="cartItems.length === 0"
-        prepend-icon="mdi-delete-sweep"
-        variant="tonal"
-        @click="clearCart"
-      >
-        Clear Cart
-      </v-btn>
-    </div>
-
+  <v-container class="py-6 checkout-page" fluid>
     <v-row>
+      <!-- Cart Items -->
       <v-col cols="12" lg="8">
-        <v-card rounded="lg">
-          <v-card-title>Selected Items</v-card-title>
-          <v-divider />
-
+        <v-card class="cart-card" rounded="xl" variant="flat">
           <v-empty-state
             v-if="cartItems.length === 0"
+            class="py-10"
             headline="Cart is empty"
             icon="mdi-cart-off"
             text="Add products from the POS page before checkout."
@@ -42,138 +19,206 @@
             </template>
           </v-empty-state>
 
-          <v-table v-else>
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th class="text-center">Quantity</th>
-                <th class="text-right">Unit Price</th>
-                <th class="text-right">Subtotal</th>
-                <th class="text-right">Action</th>
-              </tr>
-            </thead>
+          <div v-else class="cart-table-wrapper">
+            <v-table class="cart-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th class="text-center">Quantity</th>
+                  <th class="text-right">Unit Price</th>
+                  <th class="text-right">Subtotal</th>
+                  <th class="text-right">Action</th>
+                </tr>
+              </thead>
 
-            <tbody>
-              <tr v-for="item in cartItems" :key="item.productId">
-                <td>
-                  <div class="d-flex align-center ga-3 py-2">
-                    <v-avatar rounded="lg" size="48">
-                      <v-img cover :src="item.image" />
-                    </v-avatar>
+              <tbody>
+                <tr v-for="item in cartItems" :key="item.productId">
+                  <td>
+                    <div class="d-flex align-center ga-3 py-3">
+                      <v-avatar rounded="lg" size="52">
+                        <v-img cover :src="item.image" />
+                      </v-avatar>
 
-                    <div>
-                      <div class="font-weight-medium">{{ item.name }}</div>
+                      <div>
+                        <div class="font-weight-bold">{{ item.name }}</div>
 
-                      <div class="text-caption text-medium-emphasis">
-                        {{ item.code }}
+                        <div class="text-caption text-medium-emphasis">
+                          Code: {{ item.code }}
+                        </div>
+
+                        <v-chip
+                          class="mt-1"
+                          color="primary"
+                          size="x-small"
+                          variant="tonal"
+                        >
+                          {{ formatCurrency(item.unitPrice) }} / item
+                        </v-chip>
                       </div>
                     </div>
-                  </div>
-                </td>
+                  </td>
 
-                <td class="text-center">
-                  <div class="d-inline-flex align-center ga-1">
-                    <v-btn
-                      density="comfortable"
-                      icon="mdi-minus"
-                      size="small"
-                      variant="tonal"
-                      @click="decreaseQuantity(item.productId)"
-                    />
+                  <td class="text-center">
+                    <div class="quantity-control">
+                      <v-btn
+                        density="comfortable"
+                        icon="mdi-minus"
+                        size="small"
+                        variant="tonal"
+                        :disabled="item.quantity <= 1"
+                        @click="decreaseQuantity(item.productId)"
+                      />
 
-                    <span class="px-2 font-weight-medium">{{
-                      item.quantity
-                    }}</span>
+                      <span class="quantity-value">
+                        {{ item.quantity }}
+                      </span>
 
-                    <v-btn
-                      density="comfortable"
-                      icon="mdi-plus"
-                      size="small"
-                      variant="tonal"
-                      @click="handleIncrease(item.productId)"
-                    />
-                  </div>
-                </td>
+                      <v-btn
+                        color="primary"
+                        density="comfortable"
+                        icon="mdi-plus"
+                        size="small"
+                        variant="tonal"
+                        @click="handleIncrease(item.productId)"
+                      />
+                    </div>
+                  </td>
 
-                <td class="text-right">{{ formatCurrency(item.unitPrice) }}</td>
+                  <td class="text-right">
+                    {{ formatCurrency(item.unitPrice) }}
+                  </td>
 
-                <td class="text-right">
-                  {{ formatCurrency(item.unitPrice * item.quantity) }}
-                </td>
+                  <td class="text-right">
+                    <strong>
+                      {{ formatCurrency(item.unitPrice * item.quantity) }}
+                    </strong>
+                  </td>
 
-                <td class="text-right">
-                  <v-btn
-                    color="error"
-                    icon="mdi-delete"
-                    variant="text"
-                    @click="removeItem(item.productId)"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </v-table>
+                  <td class="text-right">
+                    <v-tooltip text="Remove item">
+                      <template #activator="{ props }">
+                        <v-btn
+                          v-bind="props"
+                          color="error"
+                          icon="mdi-delete-outline"
+                          variant="text"
+                          @click="removeItem(item.productId)"
+                        />
+                      </template>
+                    </v-tooltip>
+                  </td>
+                </tr>
+              </tbody>
+            </v-table>
+          </div>
         </v-card>
       </v-col>
 
+      <!-- Payment Summary -->
       <v-col cols="12" lg="4">
-        <v-card class="pa-4 card-overview" rounded="lg">
-          <v-card-title class="px-0 pt-0">Payment Summary</v-card-title>
-
-          <div class="d-flex justify-space-between mb-3">
+        <v-card class="payment-card" rounded="xl" variant="flat">
+          <div class="summary-line">
             <span>Subtotal</span>
             <strong>{{ formatCurrency(subtotal) }}</strong>
           </div>
 
-          <v-text-field
-            v-model.number="discount"
-            density="comfortable"
-            label="Discount"
-            min="0"
-            prefix="$"
-            type="number"
-            variant="outlined"
-          />
+          <div class="summary-line">
+            <span>Discount</span>
+            <strong class="text-error">
+              -{{ formatCurrency(safeDiscount) }}
+            </strong>
+          </div>
 
-          <v-text-field
-            v-model.number="tax"
-            density="comfortable"
-            label="Tax"
-            min="0"
-            prefix="$"
-            type="number"
-            variant="outlined"
-          />
-
-          <v-select
-            v-model="paymentMethod"
-            density="comfortable"
-            :items="paymentMethods"
-            label="Payment Method"
-            variant="outlined"
-          />
+          <div class="summary-line">
+            <span>Tax</span>
+            <strong>{{ formatCurrency(safeTax) }}</strong>
+          </div>
 
           <v-divider class="my-4" />
 
-          <div class="d-flex justify-space-between align-center mb-5">
-            <span class="text-h6">Grand Total: </span>
+          <v-row dense>
+            <v-col cols="12" sm="6" lg="12">
+              <v-text-field
+                v-model.number="discount"
+                density="comfortable"
+                label="Discount"
+                min="0"
+                prefix="$"
+                type="number"
+                variant="outlined"
+                rounded="lg"
+                hide-details
+                prepend-inner-icon="mdi-tag-minus-outline"
+              />
+            </v-col>
 
-            <strong class="text-h5 text-primary">{{
-              formatCurrency(grandTotal)
-            }}</strong>
+            <v-col cols="12" sm="6" lg="12">
+              <v-text-field
+                v-model.number="tax"
+                density="comfortable"
+                label="Tax"
+                min="0"
+                prefix="$"
+                type="number"
+                variant="outlined"
+                rounded="lg"
+                hide-details
+                prepend-inner-icon="mdi-percent-outline"
+              />
+            </v-col>
+
+            <v-col cols="12">
+              <v-select
+                v-model="paymentMethod"
+                density="comfortable"
+                :items="paymentMethods"
+                label="Payment Method"
+                variant="outlined"
+                rounded="lg"
+                hide-details
+                prepend-inner-icon="mdi-credit-card-outline"
+              />
+            </v-col>
+          </v-row>
+
+          <v-divider class="my-4" />
+
+          <div class="grand-total-box">
+            <div>
+              <div class="text-caption text-medium-emphasis">Amount to Pay</div>
+              <div class="text-h5 font-weight-bold text-primary">
+                {{ formatCurrency(grandTotal) }}
+              </div>
+            </div>
+
+            <v-icon color="primary" size="34">mdi-cash-check</v-icon>
           </div>
 
-          <v-btn
-            block
-            color="primary"
-            :disabled="cartItems.length === 0 || isCheckingOut"
-            :loading="isCheckingOut"
-            prepend-icon="mdi-credit-card-check"
-            size="large"
-            variant="flat"
-            @click="confirmCheckout"
-          >
-            Confirm Payment
-          </v-btn>
+          <div class="d-flex ga-2 mt-5">
+            <v-btn
+              class="flex-grow-1"
+              color="primary"
+              variant="tonal"
+              prepend-icon="mdi-refresh"
+              :disabled="!hasAdjustments"
+              @click="resetAdjustments"
+            >
+              Reset
+            </v-btn>
+
+            <v-btn
+              class="flex-grow-1"
+              color="primary"
+              :disabled="!canCheckout"
+              :loading="isCheckingOut"
+              prepend-icon="mdi-credit-card-check"
+              size="large"
+              variant="flat"
+              @click="confirmCheckout"
+            >
+              Pay
+            </v-btn>
+          </div>
         </v-card>
       </v-col>
     </v-row>
@@ -187,85 +232,215 @@
 </template>
 
 <script lang="ts" setup>
-  import type { PaymentMethod, Sale } from '@/types/pos'
-  import { computed, reactive, ref } from 'vue'
-  import ReceiptDialog from '@/components/ReceiptDialog.vue'
-  import { useCart } from '@/composables/useCart'
-  import { formatCurrency } from '@/utils/currency'
+import type { PaymentMethod, Sale } from "@/types/pos";
+import { computed, reactive, ref } from "vue";
+import ReceiptDialog from "@/components/ReceiptDialog.vue";
+import { useCart } from "@/composables/useCart";
+import { formatCurrency } from "@/utils/currency";
 
-  const paymentMethods: PaymentMethod[] = [
-    'Cash',
-    'Bank Transfer',
-    'QR Payment',
-    'Card Payment',
-  ]
-  const {
-    cartItems,
-    subtotal,
-    increaseQuantity,
-    decreaseQuantity,
-    removeItem,
-    clearCart,
-    checkout,
-  } = useCart()
+const paymentMethods: PaymentMethod[] = [
+  "Cash",
+  "Bank Transfer",
+  "QR Payment",
+  "Card Payment",
+];
 
-  const discount = ref(0)
-  const tax = ref(0)
-  const paymentMethod = ref<PaymentMethod>('Cash')
-  const receiptDialog = ref(false)
-  const isCheckingOut = ref(false)
-  const completedSale = ref<Sale | null>(null)
-  const snackbar = reactive({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+const {
+  cartItems,
+  subtotal,
+  increaseQuantity,
+  decreaseQuantity,
+  removeItem,
+  checkout,
+} = useCart();
 
-  const grandTotal = computed(() => {
-    const safeDiscount = Math.max(0, discount.value || 0)
-    const safeTax = Math.max(0, tax.value || 0)
+const discount = ref(0);
+const tax = ref(0);
+const paymentMethod = ref<PaymentMethod>("Cash");
+const receiptDialog = ref(false);
+const isCheckingOut = ref(false);
+const completedSale = ref<Sale | null>(null);
 
-    return Math.max(0, subtotal.value - safeDiscount + safeTax)
-  })
+const snackbar = reactive({
+  show: false,
+  message: "",
+  color: "success",
+});
 
-  function showMessage (message: string, color = 'success') {
-    snackbar.message = message
-    snackbar.color = color
-    snackbar.show = true
-  }
+const safeDiscount = computed(() => Math.max(0, Number(discount.value) || 0));
+const safeTax = computed(() => Math.max(0, Number(tax.value) || 0));
 
-  function handleIncrease (productId: number) {
-    const result = increaseQuantity(productId)
+const totalItems = computed(() =>
+  cartItems.value.reduce((total, item) => total + item.quantity, 0),
+);
 
-    showMessage(result.message, result.ok ? 'success' : 'warning')
-  }
+const grandTotal = computed(() => {
+  return Math.max(0, subtotal.value - safeDiscount.value + safeTax.value);
+});
 
-  async function confirmCheckout () {
-    isCheckingOut.value = true
+const hasAdjustments = computed(() => {
+  return (
+    safeDiscount.value > 0 ||
+    safeTax.value > 0 ||
+    paymentMethod.value !== "Cash"
+  );
+});
 
-    try {
-      const result = await checkout(discount.value, tax.value, paymentMethod.value)
+const canCheckout = computed(() => {
+  return cartItems.value.length > 0 && !isCheckingOut.value;
+});
 
-      if (!result.ok) {
-        showMessage(result.message, 'error')
-        return
-      }
+function showMessage(message: string, color = "success") {
+  snackbar.message = message;
+  snackbar.color = color;
+  snackbar.show = true;
+}
 
-      completedSale.value = result.sale ?? null
-      receiptDialog.value = true
-      discount.value = 0
-      tax.value = 0
-      paymentMethod.value = 'Cash'
-      showMessage(result.message, 'success')
-    } finally {
-      isCheckingOut.value = false
+function handleIncrease(productId: number) {
+  const result = increaseQuantity(productId);
+
+  showMessage(result.message, result.ok ? "success" : "warning");
+}
+
+function resetAdjustments() {
+  discount.value = 0;
+  tax.value = 0;
+  paymentMethod.value = "Cash";
+}
+
+function paymentColor(method: PaymentMethod) {
+  if (method === "Cash") return "success";
+  if (method === "Bank Transfer") return "info";
+  if (method === "QR Payment") return "primary";
+  if (method === "Card Payment") return "deep-purple";
+
+  return "grey";
+}
+
+async function confirmCheckout() {
+  if (!canCheckout.value) return;
+
+  isCheckingOut.value = true;
+
+  try {
+    const result = await checkout(
+      safeDiscount.value,
+      safeTax.value,
+      paymentMethod.value,
+    );
+
+    if (!result.ok) {
+      showMessage(result.message, "error");
+      return;
     }
+
+    completedSale.value = result.sale ?? null;
+    receiptDialog.value = true;
+    resetAdjustments();
+    showMessage(result.message, "success");
+  } finally {
+    isCheckingOut.value = false;
   }
+}
 </script>
 
-<style>
-.card-overview {
-  /* box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); */
-  padding: 1.5rem;
+<style scoped>
+.checkout-page {
+  background: #f6f8fb;
+  min-height: 100vh;
+}
+
+.summary-card {
+  padding: 18px;
+  border: 1px solid rgba(var(--v-theme-primary), 0.1);
+  background: #ffffff;
+}
+
+.total-card {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--v-theme-primary), 0.08),
+    #ffffff
+  );
+}
+
+.cart-card,
+.payment-card {
+  background: #ffffff;
+  border: 1px solid rgba(var(--v-theme-primary), 0.1);
+}
+
+.payment-card {
+  padding: 20px;
+  position: sticky;
+  top: 90px;
+}
+
+.cart-table-wrapper {
+  overflow-x: auto;
+}
+
+.cart-table :deep(th) {
+  font-weight: 700 !important;
+  background: #f8fafc;
+  white-space: nowrap;
+}
+
+.cart-table :deep(td) {
+  border-bottom: 1px solid #eef0f3;
+}
+
+.quantity-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid #eef0f3;
+}
+
+.quantity-value {
+  min-width: 28px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.summary-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.grand-total-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(var(--v-theme-primary), 0.08);
+  border: 1px solid rgba(var(--v-theme-primary), 0.12);
+}
+
+@media (max-width: 1280px) {
+  .payment-card {
+    position: static;
+  }
+}
+
+@media (max-width: 600px) {
+  .summary-card {
+    padding: 16px;
+  }
+
+  .payment-card {
+    padding: 16px;
+  }
+
+  .cart-table :deep(th),
+  .cart-table :deep(td) {
+    white-space: nowrap;
+  }
 }
 </style>

@@ -7,6 +7,7 @@ A Vue 3 + Vite + Vuetify frontend for a retail point-of-sale workflow backed by 
 - Home dashboard with total products, today's sales, total sales, and total revenue
 - POS product grid with image, name, code, barcode, category, price, and stock
 - Product search by name, product code, or barcode
+- Inventory screen for stock management and POS product visibility
 - Category filtering from mock JSON data
 - Add-to-cart flow with stock validation and out-of-stock warnings
 - Cart quantity controls, item removal, and clear-cart action

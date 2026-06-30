@@ -1,4 +1,4 @@
-const fs = require('node:fs')
+﻿const fs = require('node:fs')
 const path = require('node:path')
 const sqlite3 = require('sqlite3').verbose()
 
@@ -107,8 +107,8 @@ async function seedProducts () {
   const products = loadSeedFile('products.json')
   for (const product of products) {
     await run(
-      `INSERT INTO products (id, name, code, barcode, categoryId, price, stock, image)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO products (id, name, code, barcode, categoryId, price, stock, image, isActive)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       product.id,
       product.name,
       product.code,
@@ -117,6 +117,7 @@ async function seedProducts () {
       product.price,
       product.stock,
       product.image,
+      product.isActive === false ? 0 : 1,
     )
   }
 }
@@ -141,6 +142,15 @@ async function seedCart () {
 
   const carts = loadSeedFile('carts.json')
   await run('INSERT INTO carts (id, items) VALUES (?, ?)', 'default', JSON.stringify(carts))
+}
+
+async function migrateProductVisibility () {
+  const columns = await all('PRAGMA table_info(products)')
+  const hasIsActive = columns.some(column => column.name === 'isActive')
+
+  if (!hasIsActive) {
+    await run('ALTER TABLE products ADD COLUMN isActive INTEGER NOT NULL DEFAULT 1')
+  }
 }
 
 async function migrateOrdersToSales () {
@@ -184,6 +194,7 @@ async function initialize () {
     price REAL NOT NULL,
     stock INTEGER NOT NULL,
     image TEXT NOT NULL,
+    isActive INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (categoryId) REFERENCES categories(id)
   )`)
 
@@ -205,6 +216,7 @@ async function initialize () {
 
   await seedCategories()
   await seedProducts()
+  await migrateProductVisibility()
   await seedSales()
   await seedCart()
   await migrateOrdersToSales()

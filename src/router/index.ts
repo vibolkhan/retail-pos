@@ -26,6 +26,10 @@ const router = createRouter({
       component: () => import('@/pages/CartPage.vue'),
     },
     {
+      path: '/inventory',
+      component: () => import('@/pages/InventoryPage.vue'),
+    },
+    {
       path: '/carts',
       redirect: '/cart',
     },

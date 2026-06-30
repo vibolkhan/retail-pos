@@ -78,7 +78,10 @@ export async function createProductInventory(
     .insert([payload])
     .single();
   handleError(error);
-  return ensureData(data) as Product;
+  if (!data) {
+    throw new Error('Failed to create product: returned null');
+  }
+  return data as Product;
 }
 
 export async function updateProductInventory(
@@ -90,7 +93,10 @@ export async function updateProductInventory(
     .eq("id", payload.id)
     .single();
   handleError(error);
-  return ensureData(data) as Product;
+  if (!data) {
+    throw new Error('Failed to update product: returned null');
+  }
+  return data as Product;
 }
 
 // Cart

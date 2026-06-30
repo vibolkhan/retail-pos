@@ -1,6 +1,6 @@
 import type { CartItem, PaymentMethod, Product, Sale } from '@/types/pos'
 import { computed, ref, watch } from 'vue'
-import { addSale, getCart, saveCart } from '@/composables/useMockApi'
+import { addSale, getCart, saveCart } from '@/composables/useSupabase'
 
 const cartItems = ref<CartItem[]>([])
 const cartLoaded = ref(false)

@@ -111,7 +111,7 @@
   import { Chart, type ChartConfiguration, registerables } from 'chart.js'
   import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
   import { useCart } from '@/composables/useCart'
-  import { getProducts, getSales } from '@/composables/useMockApi'
+import { getProducts, getSales } from '@/composables/useSupabase'
   import { formatCurrency } from '@/utils/currency'
 
   Chart.register(...registerables)

@@ -237,7 +237,7 @@
 import type { Sale } from "@/types/pos";
 import { computed, onMounted, ref } from "vue";
 import ReceiptDialog from "@/components/ReceiptDialog.vue";
-import { getSales } from "@/composables/useMockApi";
+import { getSales } from '@/composables/useSupabase';
 import { formatCurrency } from "@/utils/currency";
 
 const sales = ref<Sale[]>([]);

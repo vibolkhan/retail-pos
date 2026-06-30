@@ -72,7 +72,7 @@ import type { Category, Product } from "@/types/pos";
 import { computed, onMounted, reactive, ref } from "vue";
 import ProductCard from "@/components/ProductCard.vue";
 import { useCart } from "@/composables/useCart";
-import { getCategories, getProducts } from "@/composables/useMockApi";
+import { getCategories, getProducts } from '@/composables/useSupabase';
 
 const { addToCart } = useCart();
 

@@ -246,15 +246,10 @@
 </template>
 
 <script lang="ts" setup>
-import type { ProductInventoryPayload } from "@/composables/useMockApi";
+import type { ProductInventoryPayload } from '@/composables/useSupabase';
 import type { Category, Product } from "@/types/pos";
 import { computed, onMounted, reactive, ref } from "vue";
-import {
-  createProductInventory,
-  getCategories,
-  getInventoryProducts,
-  updateProductInventory,
-} from "@/composables/useMockApi";
+import { createProductInventory, getCategories, getInventoryProducts, updateProductInventory } from '@/composables/useSupabase';
 import { formatCurrency } from "@/utils/currency";
 
 type DialogMode = "create" | "edit";

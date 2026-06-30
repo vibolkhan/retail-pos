@@ -1,18 +1,9 @@
 <template>
-  <v-dialog
-    v-model="dialogModel"
-    max-width="560"
-    persistent
-  >
+  <v-dialog v-model="dialogModel" max-width="560" persistent>
     <v-card v-if="sale" rounded="lg">
-      <v-card-title class="d-flex align-center justify-space-between">
+      <v-card-title class="receipt-title">
         <span>Payment Receipt</span>
-
-        <v-btn
-          icon="mdi-close"
-          variant="text"
-          @click="closeDialog"
-        />
+        <v-btn icon="mdi-close" variant="text" @click="closeDialog" />
       </v-card-title>
 
       <v-divider />
@@ -38,13 +29,12 @@
           </thead>
 
           <tbody>
-            <tr
-              v-for="item in sale.items"
-              :key="item.productId"
-            >
+            <tr v-for="item in sale.items" :key="item.productId">
               <td>{{ item.name }}</td>
               <td class="text-center">{{ item.quantity }}</td>
-              <td class="text-right">{{ formatCurrency(item.quantity * item.unitPrice) }}</td>
+              <td class="text-right">
+                {{ formatCurrency(item.quantity * item.unitPrice) }}
+              </td>
             </tr>
           </tbody>
         </v-table>
@@ -79,11 +69,7 @@
       <v-card-actions>
         <v-spacer />
 
-        <v-btn
-          color="primary"
-          variant="flat"
-          @click="closeDialog"
-        >
+        <v-btn color="primary" variant="flat" @click="closeDialog">
           Done
         </v-btn>
       </v-card-actions>
@@ -92,16 +78,24 @@
 </template>
 
 <script lang="ts" setup>
-  import type { Sale } from '@/types/pos'
-  import { formatCurrency } from '@/utils/currency'
+import type { Sale } from "@/types/pos";
+import { formatCurrency } from "@/utils/currency";
 
-  defineProps<{
-    sale: Sale | null
-  }>()
+defineProps<{
+  sale: Sale | null;
+}>();
 
-  const dialogModel = defineModel<boolean>({ required: true })
+const dialogModel = defineModel<boolean>({ required: true });
 
-  function closeDialog () {
-    dialogModel.value = false
-  }
+function closeDialog() {
+  dialogModel.value = false;
+}
 </script>
+<style>
+.receipt-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+</style>

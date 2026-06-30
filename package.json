@@ -4,17 +4,12 @@
   "type": "module",
   "version": "0.0.0",
   "scripts": {
-    "dev:client": "vite",
-    "dev:server": "npm --prefix server run dev",
-    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
-    "build": "run-p type-check \"build-only {@}\" --",
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "build-only": "vite build",
     "type-check": "vue-tsc --build --force",
     "lint": "eslint",
-    "lint:fix": "eslint --fix",
-    "mcp": "ruler apply",
-    "mcp:revert": "ruler revert"
+    "lint:fix": "eslint --fix"
   },
   "dependencies": {
     "@fontsource/roboto": "^5.2.10",

@@ -1,19 +1,22 @@
 <template>
   <v-container class="py-6" fluid>
-    <v-row class="mb-4" justify="end" no-gutters>
-      <v-col cols="auto">
-        <div class="d-flex flex-column flex-sm-row align-end ga-2">
-          <v-btn
-            color="primary"
-            prepend-icon="mdi-plus"
-            variant="flat"
-            @click="openCreateDialog"
-          >
-            Create Product
-          </v-btn>
-        </div>
-      </v-col>
-    </v-row>
+    <div
+      style="
+        display: flex;
+        justify-content: flex-end;
+        width: 100%;
+        margin-bottom: 16px;
+      "
+    >
+      <v-btn
+        color="primary"
+        prepend-icon="mdi-plus"
+        variant="flat"
+        @click="openCreateDialog"
+      >
+        Create Product
+      </v-btn>
+    </div>
     <v-alert v-if="errorMessage" class="mb-4" type="error" variant="tonal">
       {{ errorMessage }}
     </v-alert>
@@ -119,16 +122,10 @@
     <v-dialog v-model="dialogOpen" max-width="760">
       <v-card>
         <v-form @submit.prevent="saveDialogProduct">
-          <v-card-title class="d-flex align-center justify-space-between ga-3">
-            <span>{{ dialogTitle }}</span>
-
-            <v-btn
-              aria-label="Close product form"
-              icon="mdi-close"
-              size="small"
-              variant="text"
-              @click="closeDialog"
-            />
+          <v-card-title class="receipt-title">
+            <span class="flex-grow-1">{{ dialogTitle }}</span>
+            <v-spacer />
+            <v-btn icon="mdi-close" variant="text" @click="closeDialog" />
           </v-card-title>
 
           <v-divider />
@@ -246,10 +243,15 @@
 </template>
 
 <script lang="ts" setup>
-import type { ProductInventoryPayload } from '@/composables/useSupabase';
+import type { ProductInventoryPayload } from "@/composables/useSupabase";
 import type { Category, Product } from "@/types/pos";
 import { computed, onMounted, reactive, ref } from "vue";
-import { createProductInventory, getCategories, getInventoryProducts, updateProductInventory } from '@/composables/useSupabase';
+import {
+  createProductInventory,
+  getCategories,
+  getInventoryProducts,
+  updateProductInventory,
+} from "@/composables/useSupabase";
 import { formatCurrency } from "@/utils/currency";
 
 type DialogMode = "create" | "edit";
@@ -490,5 +492,11 @@ onMounted(loadProducts);
 .custom-switch {
   --v-switch-track-color: red !important;
   --v-switch-track-color-active: var(--v-theme-primary) !important;
+}
+.receipt-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
 }
 </style>

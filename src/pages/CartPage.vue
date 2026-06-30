@@ -346,27 +346,27 @@ async function confirmCheckout() {
 
 <style scoped>
 .checkout-page {
-  background: #f6f8fb;
+  background: var(--v-theme-background);
   min-height: 100vh;
 }
 
 .summary-card {
   padding: 18px;
   border: 1px solid rgba(var(--v-theme-primary), 0.1);
-  background: #ffffff;
+  background: var(--v-theme-surface);
 }
 
 .total-card {
   background: linear-gradient(
     135deg,
     rgba(var(--v-theme-primary), 0.08),
-    #ffffff
+    var(--v-theme-surface)
   );
 }
 
 .cart-card,
 .payment-card {
-  background: #ffffff;
+  background: var(--v-theme-surface);
   border: 1px solid rgba(var(--v-theme-primary), 0.1);
 }
 
@@ -382,22 +382,22 @@ async function confirmCheckout() {
 
 .cart-table :deep(th) {
   font-weight: 700 !important;
-  background: #f8fafc;
+  background: var(--v-theme-surface-variant);
   white-space: nowrap;
 }
 
 .cart-table :deep(td) {
-  border-bottom: 1px solid #eef0f3;
+  border-bottom: 1px solid var(--v-theme-surface-variant);
 }
 
 .quantity-control {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: #f8fafc;
+  background: var(--v-theme-surface-variant);
   padding: 6px;
   border-radius: 999px;
-  border: 1px solid #eef0f3;
+  border: 1px solid var(--v-theme-surface-variant);
 }
 
 .quantity-value {

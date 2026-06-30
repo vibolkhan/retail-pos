@@ -107,8 +107,9 @@ export async function getCart(): Promise<CartItem[]> {
 }
 
 export async function saveCart(items: CartItem[]): Promise<void> {
-  // Upsert each cart item; Supabase will insert if not exists, update otherwise
-  const { error } = await supabase.from("cart_items").upsert(items);
+  // Remove fields not present in the Supabase table (e.g., categoryName)
+  const itemsToSave = items.map(({ categoryName, ...rest }) => rest);
+  const { error } = await supabase.from('cart_items').upsert(itemsToSave);
   handleError(error);
 }
 

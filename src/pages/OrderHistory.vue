@@ -342,15 +342,16 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+<style scoped>
 .sales-page {
-  background: #f6f8fb;
+  background: var(--v-theme-background);
   min-height: 100vh;
 }
 
 .date-filter-card {
   padding: 24px;
   border: 1px solid rgba(var(--v-theme-primary), 0.12);
-  background: #ffffff;
+  background: var(--v-theme-surface);
 }
 
 .filter-header {
@@ -385,17 +386,17 @@ onMounted(async () => {
 }
 
 .sales-table {
-  background: #ffffff;
+  background: var(--v-theme-surface);
   overflow: hidden;
 }
 
 .sales-table :deep(th) {
   font-weight: 700 !important;
-  background: #f8fafc;
+  background: var(--v-theme-surface-variant);
 }
 
 .sales-table :deep(td) {
-  border-bottom: 1px solid #eef0f3;
+  border-bottom: 1px solid var(--v-theme-surface-variant);
 }
 
 @media (max-width: 600px) {

@@ -1,23 +1,23 @@
 # Retail POS System
 
-A Vue 3 + Vite + Vuetify frontend for a retail point-of-sale workflow. This version does not use a backend API yet. It loads mock API data from JSON files in `public/data` and stores runtime cart, stock, and completed sales data in `localStorage`.
+A Vue 3 + Vite + Vuetify frontend for a retail point-of-sale workflow backed by an Express + SQLite API. Runtime products, cart items, stock, and completed sales are stored in `server/data/db.sqlite`.
 
 ## Features
 
-- Home dashboard with total products, today's sales, total orders, and total revenue
+- Home dashboard with total products, today's sales, total sales, and total revenue
 - POS product grid with image, name, code, barcode, category, price, and stock
 - Product search by name, product code, or barcode
 - Category filtering from mock JSON data
 - Add-to-cart flow with stock validation and out-of-stock warnings
 - Cart quantity controls, item removal, and clear-cart action
 - Discount, tax, payment method, and grand-total calculation
-- Checkout validation, completed order storage, product stock reduction, and receipt dialog
+- Checkout validation, completed sale storage, product stock reduction, and receipt dialog
 - Responsive Vuetify layouts for desktop and mobile
 - Light-blue Vuetify themes for light and dark mode
 
-## Mock Data
+## Data Storage
 
-Mock API files live in `public/data`:
+Initial seed files live in `public/data`:
 
 - `products.json`
 - `categories.json`
@@ -25,7 +25,7 @@ Mock API files live in `public/data`:
 - `sales.json`
 - `users.json`
 
-The frontend loads them with `fetch('/data/filename.json')`. Completed sales, active cart items, and updated product stock are saved in browser `localStorage`.
+On startup, the backend seeds empty SQLite tables from these files. The frontend reads and writes runtime data through `/api/products`, `/api/categories`, `/api/cart`, and `/api/sales`.
 
 ## Project Structure
 

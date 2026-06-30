@@ -29,6 +29,10 @@ const router = createRouter({
       path: '/carts',
       redirect: '/cart',
     },
+    {
+      path: '/sales',
+      component: () => import('@/pages/OrderHistory.vue'),
+    },
   ],
 })
 

@@ -1,43 +1,49 @@
 import type { CartItem, PaymentMethod, Product, Sale } from '@/types/pos'
 import { computed, ref, watch } from 'vue'
-import { getStoredProductStock, setStoredProductStock } from '@/composables/useMockApi'
+import { addSale, getCart, saveCart } from '@/composables/useMockApi'
 
-const cartStorageKey = 'retail-pos-cart'
-const completedSalesStorageKey = 'retail-pos-sales'
+const cartItems = ref<CartItem[]>([])
+const cartLoaded = ref(false)
+let isLoadingCart = false
+let skipNextSave = false
 
-const cartItems = ref<CartItem[]>(readJsonStorage<CartItem[]>(cartStorageKey, []))
+loadCart()
 
-watch(cartItems, value => {
-  localStorage.setItem(cartStorageKey, JSON.stringify(value))
-}, { deep: true })
+async function loadCart () {
+  if (isLoadingCart || cartLoaded.value) {
+    return
+  }
 
-function readJsonStorage<T> (key: string, fallback: T): T {
+  isLoadingCart = true
   try {
-    const value = localStorage.getItem(key)
-
-    return value ? JSON.parse(value) as T : fallback
-  } catch {
-    return fallback
+    cartItems.value = await getCart()
+    skipNextSave = true
+    cartLoaded.value = true
+  } catch (error) {
+    console.error(error)
+    cartLoaded.value = true
+  } finally {
+    isLoadingCart = false
   }
 }
+
+watch(cartItems, value => {
+  if (!cartLoaded.value) {
+    return
+  }
+
+  if (skipNextSave) {
+    skipNextSave = false
+    return
+  }
+
+  saveCart(value).catch(error => {
+    console.error('Failed to save cart', error)
+  })
+}, { deep: true })
 
 function roundMoney (value: number) {
   return Math.round(value * 100) / 100
-}
-
-function persistCompletedSale (sale: Sale) {
-  const sales = readJsonStorage<Sale[]>(completedSalesStorageKey, [])
-  localStorage.setItem(completedSalesStorageKey, JSON.stringify([...sales, sale]))
-}
-
-function reduceProductStock () {
-  const storedStock = getStoredProductStock()
-
-  for (const item of cartItems.value) {
-    storedStock[item.productId] = Math.max(0, (storedStock[item.productId] ?? item.stock) - item.quantity)
-  }
-
-  setStoredProductStock(storedStock)
 }
 
 export function useCart () {
@@ -118,7 +124,7 @@ export function useCart () {
     cartItems.value = []
   }
 
-  function checkout (discount: number, tax: number, paymentMethod: PaymentMethod) {
+  async function checkout (discount: number, tax: number, paymentMethod: PaymentMethod) {
     if (cartItems.value.length === 0) {
       return { ok: false, message: 'Cart is empty. Add items before checkout.' }
     }
@@ -142,15 +148,23 @@ export function useCart () {
       paymentMethod,
     }
 
-    reduceProductStock()
-    persistCompletedSale(sale)
-    clearCart()
+    try {
+      await addSale(sale)
+      skipNextSave = true
+      clearCart()
 
-    return { ok: true, message: 'Payment completed successfully.', sale }
+      return { ok: true, message: 'Payment completed successfully.', sale }
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : 'Payment failed. Please try again.',
+      }
+    }
   }
 
   return {
     cartItems,
+    cartLoaded,
     itemCount,
     subtotal,
     addToCart,
@@ -159,5 +173,6 @@ export function useCart () {
     removeItem,
     clearCart,
     checkout,
+    loadCart,
   }
 }

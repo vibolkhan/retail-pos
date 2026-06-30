@@ -19,7 +19,7 @@
 
       <v-card-text>
         <div class="mb-4">
-          <div class="text-caption text-medium-emphasis">Order ID</div>
+          <div class="text-caption text-medium-emphasis">Sale ID</div>
           <div class="font-weight-bold">{{ sale.id }}</div>
         </div>
 

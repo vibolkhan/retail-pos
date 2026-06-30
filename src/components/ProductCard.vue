@@ -1,31 +1,35 @@
 <template>
-  <v-card class="h-100 d-flex flex-column" rounded="lg" :class="{'opacity-60': product.stock === 0}">
-    <v-img
-      :alt="product.name"
-      cover
-      height="170"
-      :src="product.image"
-    >
+  <v-card
+    class="d-flex flex-column"
+    rounded="lg"
+    :class="{ 'opacity-60': product.stock === 0 }"
+  >
+    <v-img :alt="product.name" cover height="170" :src="product.image">
       <template #placeholder>
         <v-skeleton-loader type="image" />
       </template>
     </v-img>
 
-    <v-card-title class="pb-1 text-wrap" style="flex-grow: 0;">
+    <v-card-title class="pb-1 text-wrap" style="flex-grow: 0">
       {{ product.name }}
     </v-card-title>
 
-    <v-card-subtitle class="pb-0" style="flex-grow: 0;">
+    <v-card-subtitle class="pb-0" style="flex-grow: 0">
       {{ product.code }} / {{ product.barcode }}
     </v-card-subtitle>
 
-    <v-card-text class="d-flex flex-column ga-3 flex-grow-1" style="flex-grow: 1;">
+    <v-card-text
+      class="d-flex flex-column ga-3 flex-grow-1"
+      style="flex-grow: 1"
+    >
       <div class="d-flex align-center justify-space-between ga-2">
         <v-chip color="primary" size="small" variant="tonal">
           {{ product.categoryName }}
         </v-chip>
 
-        <strong class="text-primary text-h6">{{ formatCurrency(product.price) }}</strong>
+        <strong class="text-primary text-h6">{{
+          formatCurrency(product.price)
+        }}</strong>
       </div>
 
       <v-alert
@@ -57,14 +61,14 @@
 </template>
 
 <script lang="ts" setup>
-  import type { Product } from '@/types/pos'
-  import { formatCurrency } from '@/utils/currency'
+import type { Product } from "@/types/pos";
+import { formatCurrency } from "@/utils/currency";
 
-  defineProps<{
-    product: Product
-  }>()
+defineProps<{
+  product: Product;
+}>();
 
-  defineEmits<{
-    add: [product: Product]
-  }>()
+defineEmits<{
+  add: [product: Product];
+}>();
 </script>

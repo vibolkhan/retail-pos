@@ -70,6 +70,7 @@
     { title: 'Home', icon: 'mdi-view-dashboard', to: '/' },
     { title: 'POS', icon: 'mdi-cash-register', to: '/pos' },
     { title: 'Cart', icon: 'mdi-cart', to: cartRoute },
+    { title: 'Sales', icon: 'mdi-history', to: '/sales' },
   ]
 
   const themeIcon = computed(() => theme.global.current.value.dark ? 'mdi-weather-sunny' : 'mdi-weather-night')

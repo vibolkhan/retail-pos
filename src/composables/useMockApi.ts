@@ -1,62 +1,52 @@
-import type { Category, Product, Sale, User } from '@/types/pos'
+import type { CartItem, Category, Product, Sale, User } from '@/types/pos'
 
-const stockStorageKey = 'retail-pos-product-stock'
-const completedSalesStorageKey = 'retail-pos-sales'
-
-async function loadJson<T> (path: string): Promise<T> {
-  const response = await fetch(path)
+async function request<T> (path: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(path, options)
 
   if (!response.ok) {
-    throw new Error(`Unable to load ${path}`)
+    const payload = await response.json().catch(() => null) as { error?: string } | null
+    throw new Error(payload?.error ?? `Unable to load ${path}`)
   }
 
   return response.json() as Promise<T>
 }
 
-function readJsonStorage<T> (key: string, fallback: T): T {
-  try {
-    const value = localStorage.getItem(key)
-
-    return value ? JSON.parse(value) as T : fallback
-  } catch {
-    return fallback
-  }
-}
-
-export function getStoredProductStock () {
-  return readJsonStorage<Record<number, number>>(stockStorageKey, {})
-}
-
-export function setStoredProductStock (stock: Record<number, number>) {
-  localStorage.setItem(stockStorageKey, JSON.stringify(stock))
+async function loadJson<T> (path: string): Promise<T> {
+  return request<T>(path)
 }
 
 export async function getCategories () {
-  return loadJson<Category[]>('/data/categories.json')
+  return request<Category[]>('/api/categories')
 }
 
 export async function getProducts () {
-  const [products, categories] = await Promise.all([
-    loadJson<Product[]>('/data/products.json'),
-    getCategories(),
-  ])
-  const categoryMap = new Map(categories.map(category => [category.id, category.name]))
-  const stockOverrides = getStoredProductStock()
+  return request<Product[]>('/api/products')
+}
 
-  return products.map(product => ({
-    ...product,
-    categoryName: categoryMap.get(product.categoryId) ?? 'Uncategorized',
-    stock: stockOverrides[product.id] ?? product.stock,
-  }))
+export async function getCart () {
+  return request<CartItem[]>('/api/cart')
+}
+
+export async function saveCart (items: CartItem[]) {
+  await request<{ success: boolean }>('/api/cart', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  })
 }
 
 export async function getSales () {
-  const mockSales = await loadJson<Sale[]>('/data/sales.json')
-  const completedSales = readJsonStorage<Sale[]>(completedSalesStorageKey, [])
-
-  return [...mockSales, ...completedSales]
+  return request<Sale[]>('/api/sales')
 }
 
 export async function getUsers () {
   return loadJson<User[]>('/data/users.json')
+}
+
+export async function addSale (sale: Sale): Promise<void> {
+  await request<{ success: boolean }>('/api/sales', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sale),
+  })
 }

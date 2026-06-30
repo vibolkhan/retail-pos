@@ -1,6 +1,8 @@
 <template>
   <v-container class="py-6" fluid>
-    <div class="d-flex flex-column flex-md-row align-md-center justify-space-between ga-4 mb-5">
+    <div
+      class="d-flex flex-column flex-md-row align-md-center justify-space-between ga-4 mb-5"
+    >
       <div>
         <h1 class="text-h4 font-weight-bold mb-1">Cart</h1>
 
@@ -52,10 +54,7 @@
             </thead>
 
             <tbody>
-              <tr
-                v-for="item in cartItems"
-                :key="item.productId"
-              >
+              <tr v-for="item in cartItems" :key="item.productId">
                 <td>
                   <div class="d-flex align-center ga-3 py-2">
                     <v-avatar rounded="lg" size="48">
@@ -64,7 +63,10 @@
 
                     <div>
                       <div class="font-weight-medium">{{ item.name }}</div>
-                      <div class="text-caption text-medium-emphasis">{{ item.code }}</div>
+
+                      <div class="text-caption text-medium-emphasis">
+                        {{ item.code }}
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -79,7 +81,9 @@
                       @click="decreaseQuantity(item.productId)"
                     />
 
-                    <span class="px-2 font-weight-medium">{{ item.quantity }}</span>
+                    <span class="px-2 font-weight-medium">{{
+                      item.quantity
+                    }}</span>
 
                     <v-btn
                       density="comfortable"
@@ -92,7 +96,10 @@
                 </td>
 
                 <td class="text-right">{{ formatCurrency(item.unitPrice) }}</td>
-                <td class="text-right">{{ formatCurrency(item.unitPrice * item.quantity) }}</td>
+
+                <td class="text-right">
+                  {{ formatCurrency(item.unitPrice * item.quantity) }}
+                </td>
 
                 <td class="text-right">
                   <v-btn
@@ -109,7 +116,7 @@
       </v-col>
 
       <v-col cols="12" lg="4">
-        <v-card class="pa-4" rounded="lg">
+        <v-card class="pa-4 card-overview" rounded="lg">
           <v-card-title class="px-0 pt-0">Payment Summary</v-card-title>
 
           <div class="d-flex justify-space-between mb-3">
@@ -148,14 +155,18 @@
           <v-divider class="my-4" />
 
           <div class="d-flex justify-space-between align-center mb-5">
-            <span class="text-h6">Grand Total</span>
-            <strong class="text-h5 text-primary">{{ formatCurrency(grandTotal) }}</strong>
+            <span class="text-h6">Grand Total: </span>
+
+            <strong class="text-h5 text-primary">{{
+              formatCurrency(grandTotal)
+            }}</strong>
           </div>
 
           <v-btn
             block
             color="primary"
-            :disabled="cartItems.length === 0"
+            :disabled="cartItems.length === 0 || isCheckingOut"
+            :loading="isCheckingOut"
             prepend-icon="mdi-credit-card-check"
             size="large"
             variant="flat"
@@ -167,16 +178,9 @@
       </v-col>
     </v-row>
 
-    <ReceiptDialog
-      v-model="receiptDialog"
-      :sale="completedSale"
-    />
+    <ReceiptDialog v-model="receiptDialog" :sale="completedSale" />
 
-    <v-snackbar
-      v-model="snackbar.show"
-      :color="snackbar.color"
-      timeout="3000"
-    >
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.message }}
     </v-snackbar>
   </v-container>
@@ -189,7 +193,12 @@
   import { useCart } from '@/composables/useCart'
   import { formatCurrency } from '@/utils/currency'
 
-  const paymentMethods: PaymentMethod[] = ['Cash', 'Bank Transfer', 'QR Payment', 'Card Payment']
+  const paymentMethods: PaymentMethod[] = [
+    'Cash',
+    'Bank Transfer',
+    'QR Payment',
+    'Card Payment',
+  ]
   const {
     cartItems,
     subtotal,
@@ -204,6 +213,7 @@
   const tax = ref(0)
   const paymentMethod = ref<PaymentMethod>('Cash')
   const receiptDialog = ref(false)
+  const isCheckingOut = ref(false)
   const completedSale = ref<Sale | null>(null)
   const snackbar = reactive({
     show: false,
@@ -211,7 +221,12 @@
     color: 'success',
   })
 
-  const grandTotal = computed(() => Math.max(0, subtotal.value - Math.max(0, discount.value || 0) + Math.max(0, tax.value || 0)))
+  const grandTotal = computed(() => {
+    const safeDiscount = Math.max(0, discount.value || 0)
+    const safeTax = Math.max(0, tax.value || 0)
+
+    return Math.max(0, subtotal.value - safeDiscount + safeTax)
+  })
 
   function showMessage (message: string, color = 'success') {
     snackbar.message = message
@@ -225,19 +240,32 @@
     showMessage(result.message, result.ok ? 'success' : 'warning')
   }
 
-  function confirmCheckout () {
-    const result = checkout(discount.value, tax.value, paymentMethod.value)
+  async function confirmCheckout () {
+    isCheckingOut.value = true
 
-    if (!result.ok) {
-      showMessage(result.message, 'error')
-      return
+    try {
+      const result = await checkout(discount.value, tax.value, paymentMethod.value)
+
+      if (!result.ok) {
+        showMessage(result.message, 'error')
+        return
+      }
+
+      completedSale.value = result.sale ?? null
+      receiptDialog.value = true
+      discount.value = 0
+      tax.value = 0
+      paymentMethod.value = 'Cash'
+      showMessage(result.message, 'success')
+    } finally {
+      isCheckingOut.value = false
     }
-
-    completedSale.value = result.sale ?? null
-    receiptDialog.value = true
-    discount.value = 0
-    tax.value = 0
-    paymentMethod.value = 'Cash'
-    showMessage(result.message, 'success')
   }
 </script>
+
+<style>
+.card-overview {
+  /* box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); */
+  padding: 1.5rem;
+}
+</style>

@@ -1,7 +1,7 @@
 <template>
   <v-app-bar color="primary" flat>
     <v-app-bar-title class="font-weight-bold">
-      Retail POS System
+      Retail POS
     </v-app-bar-title>
 
     <v-spacer />

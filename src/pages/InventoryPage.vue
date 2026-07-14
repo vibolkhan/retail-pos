@@ -48,11 +48,15 @@
     </v-row>
 
     <v-data-table
-      class="elevation-1"
+      class="pos-data-table"
       :headers="headers"
       :items="filteredProducts"
       :items-per-page="10"
       :loading="loading"
+      density="comfortable"
+      elevation="1"
+      mobile-breakpoint="md"
+      rounded="xl"
     >
       <template #item.product="{ item }">
         <div class="d-flex align-center ga-3 py-2">
@@ -445,9 +449,13 @@ async function saveDialogProduct() {
   saving.value = true;
 
   try {
+    const categoryName =
+      categories.value.find((category) => category.id === payload.categoryId)
+        ?.name ?? "";
+
     if (dialogMode.value === "create") {
       const createdProduct = await createProductInventory(payload);
-      products.value = [...products.value, createdProduct];
+      products.value = [...products.value, { ...createdProduct, categoryName }];
       showMessage(`${createdProduct.name} created.`);
     } else if (form.id) {
       const updatedProduct = await updateProductInventory({
@@ -458,7 +466,7 @@ async function saveDialogProduct() {
         (item) => item.id === updatedProduct.id,
       );
       if (index !== -1) {
-        products.value[index] = updatedProduct;
+        products.value[index] = { ...updatedProduct, categoryName };
       }
       showMessage(`${updatedProduct.name} updated.`);
     }

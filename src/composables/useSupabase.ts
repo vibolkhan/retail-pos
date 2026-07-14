@@ -76,6 +76,7 @@ export async function createProductInventory(
   const { data, error } = await supabase
     .from("products")
     .insert([payload])
+    .select()
     .single();
   handleError(error);
   if (!data) {
@@ -91,6 +92,7 @@ export async function updateProductInventory(
     .from("products")
     .update(payload)
     .eq("id", payload.id)
+    .select()
     .single();
   handleError(error);
   if (!data) {

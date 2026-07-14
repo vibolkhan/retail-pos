@@ -35,7 +35,7 @@
         </div>
       </div>
 
-      <v-row dense align="center">
+      <v-row density="comfortable" align="center">
         <!-- Search -->
         <v-col cols="12" md="6">
           <v-text-field
@@ -129,8 +129,11 @@
       :headers="headers"
       :items="filteredSales"
       item-value="id"
-      class="sales-table elevation-0 rounded-xl border"
+      class="pos-data-table sales-table"
       density="comfortable"
+      elevation="1"
+      mobile-breakpoint="md"
+      rounded="xl"
     >
       <template #item.id="{ item }">
         <span class="font-weight-bold text-primary"> #{{ item.id }} </span>
@@ -342,16 +345,15 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-<style scoped>
 .sales-page {
-  background: var(--v-theme-background);
+  background: rgb(var(--v-theme-background));
   min-height: 100vh;
 }
 
 .date-filter-card {
   padding: 24px;
   border: 1px solid rgba(var(--v-theme-primary), 0.12);
-  background: var(--v-theme-surface);
+  background: rgb(var(--v-theme-surface));
 }
 
 .filter-header {
@@ -386,17 +388,7 @@ onMounted(async () => {
 }
 
 .sales-table {
-  background: var(--v-theme-surface);
-  overflow: hidden;
-}
-
-.sales-table :deep(th) {
-  font-weight: 700 !important;
-  background: var(--v-theme-surface-variant);
-}
-
-.sales-table :deep(td) {
-  border-bottom: 1px solid var(--v-theme-surface-variant);
+  background: rgb(var(--v-theme-surface));
 }
 
 @media (max-width: 600px) {

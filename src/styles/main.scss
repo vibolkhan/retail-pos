@@ -67,3 +67,34 @@ body {
   background-color: rgba(var(--v-theme-primary), 0.08);
   transition: background-color 0.2s;
 }
+
+/* Shared "premium" table look for every data table / v-table in the app
+   (POS cart, inventory, sales history). Keeping this in one place avoids
+   the three pages drifting out of sync with each other. */
+.pos-data-table {
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.pos-data-table table > thead > tr > th {
+  background: rgb(var(--v-theme-surface-variant));
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-weight: 700;
+  border-bottom: 2px solid rgba(var(--v-theme-primary), 0.18);
+}
+
+.pos-data-table table > tbody > tr > td {
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.06);
+}
+
+.pos-data-table table > tbody > tr:last-child > td {
+  border-bottom: none;
+}
+
+.pos-data-table table > tbody > tr:nth-of-type(even) {
+  background: rgba(var(--v-theme-on-surface), 0.03);
+}
+
+.pos-data-table table > tbody > tr:hover {
+  background: rgba(var(--v-theme-primary), 0.07) !important;
+}

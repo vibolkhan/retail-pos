@@ -19,8 +19,67 @@
             </template>
           </v-empty-state>
 
+          <div v-else-if="mobile" class="cart-card-list">
+            <div v-for="item in cartItems" :key="item.productId" class="cart-item-card">
+              <div class="d-flex align-center ga-3">
+                <v-avatar rounded="lg" size="52">
+                  <v-img cover :src="item.image" />
+                </v-avatar>
+
+                <div class="flex-grow-1">
+                  <div class="font-weight-bold">{{ item.name }}</div>
+
+                  <div class="text-caption text-medium-emphasis">
+                    Code: {{ item.code }}
+                  </div>
+
+                  <v-chip class="mt-1" color="primary" size="x-small" variant="tonal">
+                    {{ formatCurrency(item.unitPrice) }} / item
+                  </v-chip>
+                </div>
+
+                <v-btn
+                  color="error"
+                  icon="mdi-delete-outline"
+                  variant="text"
+                  @click="removeItem(item.productId)"
+                />
+              </div>
+
+              <v-divider class="my-3" />
+
+              <div class="d-flex align-center justify-space-between">
+                <div class="quantity-control">
+                  <v-btn
+                    density="comfortable"
+                    icon="mdi-minus"
+                    size="small"
+                    variant="tonal"
+                    :disabled="item.quantity <= 1"
+                    @click="decreaseQuantity(item.productId)"
+                  />
+
+                  <span class="quantity-value">{{ item.quantity }}</span>
+
+                  <v-btn
+                    color="primary"
+                    density="comfortable"
+                    icon="mdi-plus"
+                    size="small"
+                    variant="tonal"
+                    @click="handleIncrease(item.productId)"
+                  />
+                </div>
+
+                <strong class="text-h6">
+                  {{ formatCurrency(item.unitPrice * item.quantity) }}
+                </strong>
+              </div>
+            </div>
+          </div>
+
           <div v-else class="cart-table-wrapper">
-            <v-table class="cart-table">
+            <v-table class="pos-data-table cart-table" density="comfortable" rounded="xl">
               <thead>
                 <tr>
                   <th>Product</th>
@@ -136,7 +195,7 @@
 
           <v-divider class="my-4" />
 
-          <v-row dense>
+          <v-row density="comfortable">
             <v-col cols="12" sm="6" lg="12">
               <v-text-field
                 v-model.number="discount"
@@ -234,9 +293,12 @@
 <script lang="ts" setup>
 import type { PaymentMethod, Sale } from "@/types/pos";
 import { computed, reactive, ref } from "vue";
+import { useDisplay } from "vuetify";
 import ReceiptDialog from "@/components/ReceiptDialog.vue";
 import { useCart } from "@/composables/useCart";
 import { formatCurrency } from "@/utils/currency";
+
+const { mobile } = useDisplay();
 
 const paymentMethods: PaymentMethod[] = [
   "Cash",
@@ -346,27 +408,27 @@ async function confirmCheckout() {
 
 <style scoped>
 .checkout-page {
-  background: var(--v-theme-background);
+  background: rgb(var(--v-theme-background));
   min-height: 100vh;
 }
 
 .summary-card {
   padding: 18px;
   border: 1px solid rgba(var(--v-theme-primary), 0.1);
-  background: var(--v-theme-surface);
+  background: rgb(var(--v-theme-surface));
 }
 
 .total-card {
   background: linear-gradient(
     135deg,
     rgba(var(--v-theme-primary), 0.08),
-    var(--v-theme-surface)
+    rgb(var(--v-theme-surface))
   );
 }
 
 .cart-card,
 .payment-card {
-  background: var(--v-theme-surface);
+  background: rgb(var(--v-theme-surface));
   border: 1px solid rgba(var(--v-theme-primary), 0.1);
 }
 
@@ -380,24 +442,31 @@ async function confirmCheckout() {
   overflow-x: auto;
 }
 
-.cart-table :deep(th) {
-  font-weight: 700 !important;
-  background: var(--v-theme-surface-variant);
-  white-space: nowrap;
+.cart-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
 }
 
-.cart-table :deep(td) {
-  border-bottom: 1px solid var(--v-theme-surface-variant);
+.cart-item-card {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.1);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.cart-table :deep(th) {
+  white-space: nowrap;
 }
 
 .quantity-control {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: var(--v-theme-surface-variant);
+  background: rgb(var(--v-theme-surface-variant));
   padding: 6px;
   border-radius: 999px;
-  border: 1px solid var(--v-theme-surface-variant);
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.1);
 }
 
 .quantity-value {

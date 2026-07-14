@@ -6,8 +6,6 @@
 
     <v-spacer />
 
-    
-
     <v-btn
       aria-label="Toggle theme"
       class="ml-1"
@@ -31,6 +29,14 @@
         <v-icon icon="mdi-cart" />
       </v-badge>
     </v-btn>
+
+    <v-btn
+      aria-label="Log out"
+      class="ml-1"
+      icon="mdi-logout"
+      variant="text"
+      @click="handleLogout"
+    />
   </v-app-bar>
 <v-bottom-navigation class="d-sm-none" color="primary" grow>
   <v-btn
@@ -49,26 +55,38 @@
 
 <script lang="ts" setup>
   import { computed } from 'vue'
-  import { useRoute } from 'vue-router'
+  import { useRouter } from 'vue-router'
   import { useTheme } from 'vuetify'
   import { useCart } from '@/composables/useCart'
+  import { useAuthStore } from '@/stores/auth'
+  import type { Role } from '@/types/auth'
 
-  const route = useRoute()
+  const router = useRouter()
   const theme = useTheme()
   const { itemCount } = useCart()
+  const authStore = useAuthStore()
 
   const cartRoute = '/cart'
-  const navigationItems = [
-    { title: 'Home', icon: 'mdi-view-dashboard', to: '/' },
-    { title: 'POS', icon: 'mdi-cash-register', to: '/pos' },
-    { title: 'Cart', icon: 'mdi-cart', to: cartRoute },
-    { title: 'Inventory', icon: 'mdi-warehouse', to: '/inventory' },
-    { title: 'Sales', icon: 'mdi-history', to: '/sales' },
+  const allNavigationItems: Array<{ title: string, icon: string, to: string, roles: Role[] }> = [
+    { title: 'Home', icon: 'mdi-view-dashboard', to: '/', roles: ['admin'] },
+    { title: 'POS', icon: 'mdi-cash-register', to: '/pos', roles: ['admin', 'salesperson'] },
+    { title: 'Cart', icon: 'mdi-cart', to: cartRoute, roles: ['admin', 'salesperson'] },
+    { title: 'Inventory', icon: 'mdi-warehouse', to: '/inventory', roles: ['admin'] },
+    { title: 'Sales', icon: 'mdi-history', to: '/sales', roles: ['admin'] },
   ]
+
+  const navigationItems = computed(() =>
+    allNavigationItems.filter(item => authStore.role && item.roles.includes(authStore.role)),
+  )
 
   const themeIcon = computed(() => theme.global.current.value.dark ? 'mdi-weather-sunny' : 'mdi-weather-night')
 
   function toggleTheme () {
     theme.change(theme.global.current.value.dark ? 'lightBlueLight' : 'lightBlueDark')
+  }
+
+  async function handleLogout () {
+    await authStore.logout()
+    router.push('/login')
   }
 </script>

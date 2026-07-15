@@ -5,10 +5,10 @@
         <v-chip
           class="mb-4"
           color="primary"
-          prepend-icon="mdi-store"
+          :prepend-icon="branchStore.isWholesale ? 'mdi-warehouse' : 'mdi-store'"
           variant="tonal"
         >
-          Retail POS System
+          {{ branchStore.activeBranch?.name ?? 'Retail POS System' }}
         </v-chip>
 
         <h1 class="text-h4 text-md-h3 font-weight-bold mb-3">
@@ -91,7 +91,10 @@
           <div class="chart-header">
             <div>
               <div class="text-overline text-warning">Inventory</div>
-              <h2 class="text-h6 font-weight-bold">Stock by product category</h2>
+
+              <h2 class="text-h6 font-weight-bold">
+                Stock by product category{{ branchStore.isWholesale ? ' (wholesale)' : '' }}
+              </h2>
             </div>
 
             <span class="metric-pill">{{ products.length }} products</span>
@@ -109,15 +112,21 @@
 <script lang="ts" setup>
   import type { Product, Sale } from '@/types/pos'
   import { Chart, type ChartConfiguration, registerables } from 'chart.js'
-  import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+  import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useCart } from '@/composables/useCart'
-import { getProducts, getSales } from '@/composables/useSupabase'
+  import { getProducts, getSales } from '@/composables/useSupabase'
+  import { useBranchStore } from '@/stores/branch'
   import { formatCurrency } from '@/utils/currency'
 
   Chart.register(...registerables)
 
+  const branchStore = useBranchStore()
   const products = ref<Product[]>([])
-  const sales = ref<Sale[]>([])
+  const allSales = ref<Sale[]>([])
+  // Dashboard is scoped to the active branch
+  const sales = computed(() =>
+    allSales.value.filter(sale => sale.branchId === branchStore.activeBranchId),
+  )
   const errorMessage = ref('')
   const flowChartRef = ref<HTMLCanvasElement | null>(null)
   const revenueChartRef = ref<HTMLCanvasElement | null>(null)
@@ -310,21 +319,32 @@ import { getProducts, getSales } from '@/composables/useSupabase'
     inventoryChart = null
   }
 
-  onMounted(async () => {
+  async function loadDashboard () {
     try {
+      await branchStore.loadBranches()
+      if (branchStore.activeBranchId == null) {
+        throw new Error('No branch available.')
+      }
       const [productData, saleData] = await Promise.all([
-        getProducts(),
+        getProducts(branchStore.activeBranchId),
         getSales(),
       ])
 
       products.value = productData
-      sales.value = saleData
+      allSales.value = saleData
       await nextTick()
       buildCharts()
     } catch (error) {
       errorMessage.value
         = error instanceof Error ? error.message : 'Unable to load dashboard data.'
     }
+  }
+
+  onMounted(loadDashboard)
+
+  // Rebuild branch-scoped charts when the user switches branch
+  watch(() => branchStore.activeBranchId, () => {
+    loadDashboard()
   })
 
   onBeforeUnmount(() => {

@@ -31,7 +31,14 @@
           <tbody>
             <tr v-for="item in sale.items" :key="item.productId">
               <td>{{ item.name }}</td>
-              <td class="text-center">{{ item.quantity }}</td>
+
+              <td class="text-center">
+                {{ item.quantity }}{{ item.uom === 'batch' ? ` ${item.batchUnit ?? 'batch'}` : '' }}
+                <div v-if="item.uom === 'batch' && item.batchSize" class="text-caption text-medium-emphasis">
+                  × {{ item.batchSize }} units
+                </div>
+              </td>
+
               <td class="text-right">
                 {{ formatCurrency(item.quantity * item.unitPrice) }}
               </td>
@@ -78,18 +85,18 @@
 </template>
 
 <script lang="ts" setup>
-import type { Sale } from "@/types/pos";
-import { formatCurrency } from "@/utils/currency";
+  import type { Sale } from '@/types/pos'
+  import { formatCurrency } from '@/utils/currency'
 
-defineProps<{
-  sale: Sale | null;
-}>();
+  defineProps<{
+    sale: Sale | null
+  }>()
 
-const dialogModel = defineModel<boolean>({ required: true });
+  const dialogModel = defineModel<boolean>({ required: true })
 
-function closeDialog() {
-  dialogModel.value = false;
-}
+  function closeDialog () {
+    dialogModel.value = false
+  }
 </script>
 <style>
 .receipt-title {

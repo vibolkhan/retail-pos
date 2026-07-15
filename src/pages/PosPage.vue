@@ -35,8 +35,15 @@
     </v-alert>
 
     <v-row v-if="loading">
-      <v-col v-for="index in 8" :key="index" cols="12" lg="3" md="4" sm="6">
-        <v-skeleton-loader type="image, article, actions" />
+      <v-col
+        v-for="index in 12"
+        :key="index"
+        cols="6"
+        lg="2"
+        md="3"
+        sm="4"
+      >
+        <v-skeleton-loader type="image, list-item-two-line" />
       </v-col>
     </v-row>
 
@@ -44,12 +51,17 @@
       <v-col
         v-for="product in filteredProducts"
         :key="product.id"
-        cols="12"
-        lg="3"
-        md="4"
-        sm="6"
+        cols="6"
+        lg="2"
+        md="3"
+        sm="4"
       >
-        <ProductCard :product="product" @add="handleAddToCart" />
+        <ProductCard
+          :product="product"
+          :quantity-in-cart="cartQuantities.get(product.id) ?? 0"
+          :wholesale="branchStore.isWholesale"
+          @add="handleAddToCart"
+        />
       </v-col>
     </v-row>
 
@@ -61,6 +73,12 @@
       title="Nothing matches your filters"
     />
 
+    <QuantityDialog
+      v-model="quantityDialog"
+      :product="selectedProduct"
+      @confirm="handleAddCases"
+    />
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.message }}
     </v-snackbar>
@@ -68,71 +86,114 @@
 </template>
 
 <script lang="ts" setup>
-import type { Category, Product } from "@/types/pos";
-import { computed, onMounted, reactive, ref } from "vue";
-import ProductCard from "@/components/ProductCard.vue";
-import { useCart } from "@/composables/useCart";
-import { getCategories, getProducts } from '@/composables/useSupabase';
+  import type { Category, Product } from '@/types/pos'
+  import { computed, onMounted, reactive, ref, watch } from 'vue'
+  import ProductCard from '@/components/ProductCard.vue'
+  import QuantityDialog from '@/components/QuantityDialog.vue'
+  import { useCart } from '@/composables/useCart'
+  import { getCategories, getProducts } from '@/composables/useSupabase'
+  import { useBranchStore } from '@/stores/branch'
 
-const { addToCart } = useCart();
+  const { addToCart, cartItems } = useCart()
+  const branchStore = useBranchStore()
 
-const products = ref<Product[]>([]);
-const categories = ref<Category[]>([]);
-const loading = ref(true);
-const search = ref("");
-const selectedCategory = ref<number | null>(null);
-const errorMessage = ref("");
-const snackbar = reactive({
-  show: false,
-  message: "",
-  color: "success",
-});
+  const quantityDialog = ref(false)
+  const selectedProduct = ref<Product | null>(null)
 
-const categoryOptions = computed(() => categories.value);
+  const products = ref<Product[]>([])
+  const categories = ref<Category[]>([])
+  const loading = ref(true)
+  const search = ref('')
+  const selectedCategory = ref<number | null>(null)
+  const errorMessage = ref('')
+  const snackbar = reactive({
+    show: false,
+    message: '',
+    color: 'success',
+  })
 
-const filteredProducts = computed(() => {
-  const query = search.value.trim().toLowerCase();
+  const categoryOptions = computed(() => categories.value)
 
-  return products.value.filter((product) => {
-    const matchesCategory = selectedCategory.value
-      ? product.categoryId === selectedCategory.value
-      : true;
-    const matchesSearch = query
-      ? [product.name, product.code, product.barcode].some((value) =>
+  const cartQuantities = computed(() => {
+    const map = new Map<number, number>()
+    for (const item of cartItems.value) {
+      map.set(item.productId, item.quantity)
+    }
+    return map
+  })
+
+  const filteredProducts = computed(() => {
+    const query = search.value.trim().toLowerCase()
+
+    return products.value.filter(product => {
+      // Each channel only sells products explicitly enabled for it; wholesale
+      // additionally requires batch pricing to be configured.
+      const sellableHere = branchStore.isWholesale
+        ? product.sellableWholesale && !!product.batchSize && !!product.batchPrice
+        : product.sellableRetail
+      const matchesCategory = selectedCategory.value
+        ? product.categoryId === selectedCategory.value
+        : true
+      const matchesSearch = query
+        ? [product.name, product.code, product.barcode].some(value =>
           value.toLowerCase().includes(query),
         )
-      : true;
+        : true
 
-    return matchesCategory && matchesSearch;
-  });
-});
+      return sellableHere && matchesCategory && matchesSearch
+    })
+  })
 
-function showMessage(message: string, color = "success") {
-  snackbar.message = message;
-  snackbar.color = color;
-  snackbar.show = true;
-}
-
-function handleAddToCart(product: Product) {
-  const result = addToCart(product);
-
-  showMessage(result.message, result.ok ? "success" : "warning");
-}
-
-onMounted(async () => {
-  try {
-    const [productData, categoryData] = await Promise.all([
-      getProducts(),
-      getCategories(),
-    ]);
-
-    products.value = productData;
-    categories.value = categoryData;
-  } catch (error) {
-    errorMessage.value =
-      error instanceof Error ? error.message : "Unable to load products.";
-  } finally {
-    loading.value = false;
+  function showMessage (message: string, color = 'success') {
+    snackbar.message = message
+    snackbar.color = color
+    snackbar.show = true
   }
-});
+
+  function handleAddToCart (product: Product) {
+    if (branchStore.isWholesale) {
+      // Wholesale sells by the batch – ask how many
+      selectedProduct.value = product
+      quantityDialog.value = true
+      return
+    }
+
+    const result = addToCart(product)
+    showMessage(result.message, result.ok ? 'success' : 'warning')
+  }
+
+  function handleAddCases (product: Product, quantity: number) {
+    const result = addToCart(product, quantity)
+    showMessage(result.message, result.ok ? 'success' : 'warning')
+  }
+
+  async function load () {
+    loading.value = true
+    errorMessage.value = ''
+    try {
+      await branchStore.loadBranches()
+      if (branchStore.activeBranchId == null) {
+        throw new Error('No branch available.')
+      }
+      const [productData, categoryData] = await Promise.all([
+        getProducts(branchStore.activeBranchId),
+        getCategories(),
+      ])
+
+      products.value = productData
+      categories.value = categoryData
+    } catch (error) {
+      errorMessage.value
+        = error instanceof Error ? error.message : 'Unable to load products.'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  onMounted(load)
+
+  // Refetch branch-scoped stock when the user switches branch
+  watch(() => branchStore.activeBranchId, () => {
+    if (!loading.value) load()
+  })
 </script>

@@ -1,0 +1,39 @@
+- main [ref=e5]:
+  - generic [ref=e7]:
+    - generic [ref=e9]:
+      - generic [ref=e10]: 󰓜
+      - heading "Retail POS" [level=1] [ref=e12]
+      - paragraph [ref=e13]: Manage sales, inventory, and checkout — all in one place.
+      - generic [ref=e14]:
+        - generic [ref=e15]: 󰳴
+        - generic [ref=e16]: Fast, guided checkout at the counter
+      - generic [ref=e17]:
+        - generic [ref=e18]: 󰾁
+        - generic [ref=e19]: Real-time inventory and stock levels
+      - generic [ref=e20]:
+        - generic [ref=e21]: 󰄪
+        - generic [ref=e22]: Sales history and revenue at a glance
+    - generic [ref=e25]:
+      - generic [ref=e26]:
+        - text: 󰓜
+        - heading "Welcome back" [level=2] [ref=e27]
+        - paragraph [ref=e28]: Sign in with your store account to continue
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - generic [ref=e32]:
+            - generic [ref=e33]: 󰇰
+            - generic [ref=e35]:
+              - generic: Email
+              - textbox "Email" [ref=e36]
+          - alert [ref=e37]
+        - generic [ref=e39]:
+          - generic [ref=e41]:
+            - generic [ref=e42]: 󰍁
+            - generic [ref=e44]:
+              - generic: Password
+              - textbox "Password" [ref=e45]
+            - button "Password appended action" [ref=e47] [cursor=pointer]: 󰛐
+          - alert [ref=e48]
+        - button "Sign In" [ref=e50] [cursor=pointer]:
+          - generic [ref=e51]: 󰍂
+      - paragraph [ref=e54]: Don't have an account? Contact your administrator.

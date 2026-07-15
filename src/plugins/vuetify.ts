@@ -66,9 +66,18 @@ const lightBlueDarkTheme: ThemeDefinition = {
   },
 }
 
+// Restore the user's explicit choice (persisted by useAppStore.setDark);
+// fall back to the OS preference until they toggle for the first time.
+const savedDarkMode = localStorage.getItem('darkMode')
+
 export default createVuetify({
   theme: {
-    defaultTheme: 'system',
+    defaultTheme:
+      savedDarkMode === null
+        ? 'system'
+        : (savedDarkMode === 'true'
+            ? 'lightBlueDark'
+            : 'lightBlueLight'),
     themes: {
       light: lightBlueLightTheme,
       dark: lightBlueDarkTheme,

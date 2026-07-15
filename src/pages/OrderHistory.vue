@@ -5,7 +5,7 @@
       <div class="filter-header">
         <!-- Left Side -->
         <div class="filter-title">
-          <v-avatar color="primary" variant="tonal" size="38" class="mr-3">
+          <v-avatar class="mr-3" color="primary" size="38" variant="tonal">
             <v-icon size="22">mdi-filter-variant</v-icon>
           </v-avatar>
 
@@ -23,11 +23,11 @@
           <v-btn
             class="clear-filter-btn"
             color="primary"
-            variant="tonal"
-            size="small"
-            rounded="pill"
-            prepend-icon="mdi-filter-remove-outline"
             :disabled="!hasActiveFilters"
+            prepend-icon="mdi-filter-remove-outline"
+            rounded="pill"
+            size="small"
+            variant="tonal"
             @click="clearFilters"
           >
             Clear
@@ -35,48 +35,65 @@
         </div>
       </div>
 
-      <v-row density="comfortable" align="center">
+      <v-row align="center" density="comfortable">
         <!-- Search -->
-        <v-col cols="12" md="6">
+        <v-col cols="12" md="4">
           <v-text-field
             v-model="searchKeyword"
-            label="Search sale ID, payment, or product"
-            prepend-inner-icon="mdi-magnify"
             clearable
             density="comfortable"
-            variant="outlined"
-            rounded="lg"
             hide-details
+            label="Search sale ID, payment, or product"
+            prepend-inner-icon="mdi-magnify"
+            rounded="lg"
+            variant="outlined"
+          />
+        </v-col>
+
+        <!-- Branch -->
+        <v-col cols="12" md="2" sm="6">
+          <v-select
+            v-model="branchFilter"
+            clearable
+            density="comfortable"
+            hide-details
+            item-title="name"
+            item-value="id"
+            :items="branchStore.branches"
+            label="Branch"
+            prepend-inner-icon="mdi-store"
+            rounded="lg"
+            variant="outlined"
           />
         </v-col>
 
         <!-- Start Date -->
-        <v-col cols="12" sm="6" md="3">
+        <v-col cols="12" md="3" sm="6">
           <v-menu
             v-model="startMenu"
             :close-on-content-click="false"
-            transition="scale-transition"
             location="bottom"
             offset="8"
+            transition="scale-transition"
           >
             <template #activator="{ props }">
               <v-text-field
                 v-model="startDate"
                 v-bind="props"
+                class="date-input"
+                clearable
+                density="comfortable"
+                hide-details
                 label="Start Date"
                 placeholder="Select start date"
                 prepend-inner-icon="mdi-calendar-start"
                 readonly
-                clearable
-                density="comfortable"
-                variant="outlined"
                 rounded="lg"
-                hide-details
-                class="date-input"
+                variant="outlined"
               />
             </template>
 
-            <v-card rounded="lg" elevation="6">
+            <v-card elevation="6" rounded="lg">
               <v-date-picker
                 v-model="startDate"
                 color="primary"
@@ -87,32 +104,32 @@
         </v-col>
 
         <!-- End Date -->
-        <v-col cols="12" sm="6" md="3">
+        <v-col cols="12" md="3" sm="6">
           <v-menu
             v-model="endMenu"
             :close-on-content-click="false"
-            transition="scale-transition"
             location="bottom"
             offset="8"
+            transition="scale-transition"
           >
             <template #activator="{ props }">
               <v-text-field
                 v-model="endDate"
                 v-bind="props"
+                class="date-input"
+                clearable
+                density="comfortable"
+                hide-details
                 label="End Date"
                 placeholder="Select end date"
                 prepend-inner-icon="mdi-calendar-end"
                 readonly
-                clearable
-                density="comfortable"
-                variant="outlined"
                 rounded="lg"
-                hide-details
-                class="date-input"
+                variant="outlined"
               />
             </template>
 
-            <v-card rounded="lg" elevation="6">
+            <v-card elevation="6" rounded="lg">
               <v-date-picker
                 v-model="endDate"
                 color="primary"
@@ -126,12 +143,12 @@
 
     <!-- Sales Table -->
     <v-data-table
-      :headers="headers"
-      :items="filteredSales"
-      item-value="id"
       class="pos-data-table sales-table"
       density="comfortable"
       elevation="1"
+      :headers="headers"
+      item-value="id"
+      :items="filteredSales"
       mobile-breakpoint="md"
       rounded="xl"
     >
@@ -143,15 +160,25 @@
         {{ formatSaleDate(item.date) }}
       </template>
 
+      <template #item.branchId="{ item }">
+        <v-chip
+          :color="branchName(item.branchId) === 'Wholesale' ? 'info' : 'primary'"
+          size="small"
+          variant="tonal"
+        >
+          {{ branchName(item.branchId) }}
+        </v-chip>
+      </template>
+
       <template #item.items="{ item }">
         <v-menu location="bottom">
           <template #activator="{ props }">
             <v-btn
               v-bind="props"
               color="primary"
-              variant="tonal"
-              size="small"
               prepend-icon="mdi-information"
+              size="small"
+              variant="tonal"
             >
               {{ item.items.length }} Items
             </v-btn>
@@ -166,7 +193,7 @@
                 :key="orderItem.productId"
               >
                 <v-list-item-title>
-                  {{ orderItem.quantity }} x {{ orderItem.name }}
+                  {{ orderItem.quantity }}{{ orderItem.uom === 'batch' ? ' ' + (orderItem.batchUnit ?? 'batch') : '' }} x {{ orderItem.name }}
                 </v-list-item-title>
               </v-list-item>
             </v-list>
@@ -219,7 +246,7 @@
 
       <template #no-data>
         <div class="text-center py-8">
-          <v-icon size="48" color="primary">mdi-receipt-text-off</v-icon>
+          <v-icon color="primary" size="48">mdi-receipt-text-off</v-icon>
 
           <div class="text-subtitle-1 font-weight-bold mt-2">
             No sales found
@@ -237,111 +264,127 @@
 </template>
 
 <script lang="ts" setup>
-import type { Sale } from "@/types/pos";
-import { computed, onMounted, ref } from "vue";
-import ReceiptDialog from "@/components/ReceiptDialog.vue";
-import { getSales } from '@/composables/useSupabase';
-import { formatCurrency } from "@/utils/currency";
+  import type { Sale } from '@/types/pos'
+  import { computed, onMounted, ref } from 'vue'
+  import ReceiptDialog from '@/components/ReceiptDialog.vue'
+  import { getSales } from '@/composables/useSupabase'
+  import { useBranchStore } from '@/stores/branch'
+  import { formatCurrency } from '@/utils/currency'
 
-const sales = ref<Sale[]>([]);
+  const branchStore = useBranchStore()
+  const sales = ref<Sale[]>([])
 
-const searchKeyword = ref("");
-const startDate = ref<string | null>(null);
-const endDate = ref<string | null>(null);
+  const searchKeyword = ref('')
+  const branchFilter = ref<number | null>(null)
+  const startDate = ref<string | null>(null)
+  const endDate = ref<string | null>(null)
 
-const startMenu = ref(false);
-const endMenu = ref(false);
+  const startMenu = ref(false)
+  const endMenu = ref(false)
 
-const dialog = ref(false);
-const selectedSale = ref<Sale | null>(null);
+  const dialog = ref(false)
+  const selectedSale = ref<Sale | null>(null)
 
-const headers = [
-  { title: "Sale ID", value: "id", sortable: true },
-  { title: "Date", value: "date", sortable: true },
-  { title: "Items", value: "items", sortable: false },
-  { title: "Subtotal", value: "subtotal", sortable: true },
-  { title: "Discount", value: "discount", sortable: true },
-  { title: "Tax", value: "tax", sortable: true },
-  { title: "Total", value: "grandTotal", sortable: true },
-  { title: "Payment", value: "paymentMethod", sortable: true },
-  { title: "Invoice", value: "invoice", sortable: false, align: "end" },
-] as const;
+  const headers = [
+    { title: 'Sale ID', value: 'id', sortable: true },
+    { title: 'Date', value: 'date', sortable: true },
+    { title: 'Branch', value: 'branchId', sortable: true },
+    { title: 'Items', value: 'items', sortable: false },
+    { title: 'Subtotal', value: 'subtotal', sortable: true },
+    { title: 'Discount', value: 'discount', sortable: true },
+    { title: 'Tax', value: 'tax', sortable: true },
+    { title: 'Total', value: 'grandTotal', sortable: true },
+    { title: 'Payment', value: 'paymentMethod', sortable: true },
+    { title: 'Invoice', value: 'invoice', sortable: false, align: 'end' },
+  ] as const
 
-const hasActiveFilters = computed(() => {
-  return Boolean(searchKeyword.value || startDate.value || endDate.value);
-});
+  const hasActiveFilters = computed(() => {
+    return Boolean(
+      searchKeyword.value || branchFilter.value || startDate.value || endDate.value,
+    )
+  })
 
-const filteredSales = computed(() => {
-  const keyword = searchKeyword.value.trim().toLowerCase();
+  const filteredSales = computed(() => {
+    const keyword = searchKeyword.value.trim().toLowerCase()
 
-  return sales.value.filter((sale) => {
-    const saleDate = new Date(sale.date);
+    return sales.value.filter(sale => {
+      const saleDate = new Date(sale.date)
 
-    if (startDate.value) {
-      const start = new Date(startDate.value);
-      start.setHours(0, 0, 0, 0);
+      if (branchFilter.value && sale.branchId !== branchFilter.value) {
+        return false
+      }
 
-      if (saleDate < start) return false;
-    }
+      if (startDate.value) {
+        const start = new Date(startDate.value)
+        start.setHours(0, 0, 0, 0)
 
-    if (endDate.value) {
-      const end = new Date(endDate.value);
-      end.setHours(23, 59, 59, 999);
+        if (saleDate < start) return false
+      }
 
-      if (saleDate > end) return false;
-    }
+      if (endDate.value) {
+        const end = new Date(endDate.value)
+        end.setHours(23, 59, 59, 999)
 
-    if (keyword) {
-      const searchableValues = [
-        String(sale.id),
-        sale.paymentMethod,
-        ...sale.items.map((item) => item.name),
-      ];
+        if (saleDate > end) return false
+      }
 
-      const matchesKeyword = searchableValues.some((value) =>
-        value.toLowerCase().includes(keyword),
-      );
+      if (keyword) {
+        const searchableValues = [
+          String(sale.id),
+          sale.paymentMethod,
+          ...sale.items.map(item => item.name),
+        ]
 
-      if (!matchesKeyword) return false;
-    }
+        const matchesKeyword = searchableValues.some(value =>
+          value.toLowerCase().includes(keyword),
+        )
 
-    return true;
-  });
-});
+        if (!matchesKeyword) return false
+      }
 
-function clearFilters() {
-  searchKeyword.value = "";
-  startDate.value = null;
-  endDate.value = null;
-}
+      return true
+    })
+  })
 
-function openInvoice(sale: Sale) {
-  selectedSale.value = sale;
-  dialog.value = true;
-}
+  function clearFilters () {
+    searchKeyword.value = ''
+    branchFilter.value = null
+    startDate.value = null
+    endDate.value = null
+  }
 
-function formatSaleDate(date: string) {
-  return new Date(date).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
+  function branchName (branchId: number) {
+    return branchStore.branches.find(b => b.id === branchId)?.name ?? '—'
+  }
 
-function paymentColor(paymentMethod: string) {
-  const method = paymentMethod.toLowerCase();
+  function openInvoice (sale: Sale) {
+    selectedSale.value = sale
+    dialog.value = true
+  }
 
-  if (method.includes("cash")) return "success";
-  if (method.includes("card")) return "primary";
-  if (method.includes("bank")) return "info";
-  if (method.includes("qr")) return "primary";
+  function formatSaleDate (date: string) {
+    return new Date(date).toLocaleDateString(undefined, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })
+  }
 
-  return "grey";
-}
+  function paymentColor (paymentMethod: string) {
+    const method = paymentMethod.toLowerCase()
 
-onMounted(async () => {
-  sales.value = await getSales();
-});
+    if (method.includes('cash')) return 'success'
+    if (method.includes('card')) return 'primary'
+    if (method.includes('bank')) return 'info'
+    if (method.includes('qr')) return 'primary'
+
+    return 'grey'
+  }
+
+  onMounted(async () => {
+    const [saleRows] = await Promise.all([getSales(), branchStore.loadBranches()])
+    sales.value = saleRows
+  })
 </script>
 
 <style scoped>

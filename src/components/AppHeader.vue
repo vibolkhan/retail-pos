@@ -6,6 +6,32 @@
 
     <v-spacer />
 
+    <v-menu>
+      <template #activator="{ props: menuProps }">
+        <v-btn
+          aria-label="Switch branch"
+          class="ml-1"
+          v-bind="menuProps"
+          :prepend-icon="branchIcon"
+          variant="text"
+        >
+          <span class="hidden sm:inline">{{ branchStore.activeBranch?.name ?? 'Branch' }}</span>
+          <v-icon icon="mdi-chevron-down" size="small" />
+        </v-btn>
+      </template>
+
+      <v-list density="compact">
+        <v-list-item
+          v-for="branch in branchStore.branches"
+          :key="branch.id"
+          :active="branch.id === branchStore.activeBranchId"
+          :prepend-icon="branch.type === 'wholesale' ? 'mdi-warehouse' : 'mdi-store'"
+          :title="branch.name"
+          @click="branchStore.setActiveBranch(branch.id)"
+        />
+      </v-list>
+    </v-menu>
+
     <v-btn
       aria-label="Toggle theme"
       class="ml-1"
@@ -38,33 +64,46 @@
       @click="handleLogout"
     />
   </v-app-bar>
-<v-bottom-navigation class="d-sm-none" color="primary" grow>
-  <v-btn
-    v-for="item in navigationItems"
-    :key="item.to"
-    :to="item.to"
-    class="flex-column"
-    variant="text"
+
+  <v-bottom-navigation class="d-sm-none" color="primary" grow>
+    <v-btn
+      v-for="item in navigationItems"
+      :key="item.to"
+      class="flex-column"
+      :to="item.to"
+      variant="text"
     >
-    <v-icon :icon="item.icon" />
-    <span class="text-caption">{{ item.title }}</span>
-  </v-btn>
-</v-bottom-navigation>
+      <v-icon :icon="item.icon" />
+      <span class="text-caption">{{ item.title }}</span>
+    </v-btn>
+  </v-bottom-navigation>
 
 </template>
 
 <script lang="ts" setup>
-  import { computed } from 'vue'
+  import type { Role } from '@/types/auth'
+  import { computed, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import { useTheme } from 'vuetify'
   import { useCart } from '@/composables/useCart'
+  import { useAppStore } from '@/stores/app'
   import { useAuthStore } from '@/stores/auth'
-  import type { Role } from '@/types/auth'
+  import { useBranchStore } from '@/stores/branch'
 
   const router = useRouter()
   const theme = useTheme()
   const { itemCount } = useCart()
+  const appStore = useAppStore()
   const authStore = useAuthStore()
+  const branchStore = useBranchStore()
+
+  onMounted(() => {
+    branchStore.loadBranches()
+  })
+
+  const branchIcon = computed(() =>
+    branchStore.isWholesale ? 'mdi-warehouse' : 'mdi-store',
+  )
 
   const cartRoute = '/cart'
   const allNavigationItems: Array<{ title: string, icon: string, to: string, roles: Role[] }> = [
@@ -82,7 +121,9 @@
   const themeIcon = computed(() => theme.global.current.value.dark ? 'mdi-weather-sunny' : 'mdi-weather-night')
 
   function toggleTheme () {
-    theme.change(theme.global.current.value.dark ? 'lightBlueLight' : 'lightBlueDark')
+    const nextDark = !theme.global.current.value.dark
+    theme.change(nextDark ? 'lightBlueDark' : 'lightBlueLight')
+    appStore.setDark(nextDark)
   }
 
   async function handleLogout () {

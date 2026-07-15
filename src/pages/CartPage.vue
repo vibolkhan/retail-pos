@@ -34,7 +34,7 @@
                   </div>
 
                   <v-chip class="mt-1" color="primary" size="x-small" variant="tonal">
-                    {{ formatCurrency(item.unitPrice) }} / item
+                    {{ formatCurrency(item.unitPrice) }} / {{ uomLabel(item) }}
                   </v-chip>
                 </div>
 
@@ -52,14 +52,20 @@
                 <div class="quantity-control">
                   <v-btn
                     density="comfortable"
+                    :disabled="item.quantity <= 1"
                     icon="mdi-minus"
                     size="small"
                     variant="tonal"
-                    :disabled="item.quantity <= 1"
                     @click="decreaseQuantity(item.productId)"
                   />
 
-                  <span class="quantity-value">{{ item.quantity }}</span>
+                  <input
+                    class="quantity-input"
+                    min="1"
+                    type="number"
+                    :value="item.quantity"
+                    @change="handleSetQuantity(item.productId, $event)"
+                  >
 
                   <v-btn
                     color="primary"
@@ -111,7 +117,7 @@
                           size="x-small"
                           variant="tonal"
                         >
-                          {{ formatCurrency(item.unitPrice) }} / item
+                          {{ formatCurrency(item.unitPrice) }} / {{ uomLabel(item) }}
                         </v-chip>
                       </div>
                     </div>
@@ -121,16 +127,20 @@
                     <div class="quantity-control">
                       <v-btn
                         density="comfortable"
+                        :disabled="item.quantity <= 1"
                         icon="mdi-minus"
                         size="small"
                         variant="tonal"
-                        :disabled="item.quantity <= 1"
                         @click="decreaseQuantity(item.productId)"
                       />
 
-                      <span class="quantity-value">
-                        {{ item.quantity }}
-                      </span>
+                      <input
+                        class="quantity-input"
+                        min="1"
+                        type="number"
+                        :value="item.quantity"
+                        @change="handleSetQuantity(item.productId, $event)"
+                      >
 
                       <v-btn
                         color="primary"
@@ -183,6 +193,7 @@
 
           <div class="summary-line">
             <span>Discount</span>
+
             <strong class="text-error">
               -{{ formatCurrency(safeDiscount) }}
             </strong>
@@ -196,33 +207,33 @@
           <v-divider class="my-4" />
 
           <v-row density="comfortable">
-            <v-col cols="12" sm="6" lg="12">
+            <v-col cols="12" lg="12" sm="6">
               <v-text-field
                 v-model.number="discount"
                 density="comfortable"
+                hide-details
                 label="Discount"
                 min="0"
                 prefix="$"
+                prepend-inner-icon="mdi-tag-minus-outline"
+                rounded="lg"
                 type="number"
                 variant="outlined"
-                rounded="lg"
-                hide-details
-                prepend-inner-icon="mdi-tag-minus-outline"
               />
             </v-col>
 
-            <v-col cols="12" sm="6" lg="12">
+            <v-col cols="12" lg="12" sm="6">
               <v-text-field
                 v-model.number="tax"
                 density="comfortable"
+                hide-details
                 label="Tax"
                 min="0"
                 prefix="$"
+                prepend-inner-icon="mdi-percent-outline"
+                rounded="lg"
                 type="number"
                 variant="outlined"
-                rounded="lg"
-                hide-details
-                prepend-inner-icon="mdi-percent-outline"
               />
             </v-col>
 
@@ -230,12 +241,12 @@
               <v-select
                 v-model="paymentMethod"
                 density="comfortable"
+                hide-details
                 :items="paymentMethods"
                 label="Payment Method"
-                variant="outlined"
-                rounded="lg"
-                hide-details
                 prepend-inner-icon="mdi-credit-card-outline"
+                rounded="lg"
+                variant="outlined"
               />
             </v-col>
           </v-row>
@@ -245,6 +256,7 @@
           <div class="grand-total-box">
             <div>
               <div class="text-caption text-medium-emphasis">Amount to Pay</div>
+
               <div class="text-h5 font-weight-bold text-primary">
                 {{ formatCurrency(grandTotal) }}
               </div>
@@ -257,9 +269,9 @@
             <v-btn
               class="flex-grow-1"
               color="primary"
-              variant="tonal"
-              prepend-icon="mdi-refresh"
               :disabled="!hasAdjustments"
+              prepend-icon="mdi-refresh"
+              variant="tonal"
               @click="resetAdjustments"
             >
               Reset
@@ -291,119 +303,136 @@
 </template>
 
 <script lang="ts" setup>
-import type { PaymentMethod, Sale } from "@/types/pos";
-import { computed, reactive, ref } from "vue";
-import { useDisplay } from "vuetify";
-import ReceiptDialog from "@/components/ReceiptDialog.vue";
-import { useCart } from "@/composables/useCart";
-import { formatCurrency } from "@/utils/currency";
+  import type { CartItem, PaymentMethod, Sale } from '@/types/pos'
+  import { computed, reactive, ref } from 'vue'
+  import { useDisplay } from 'vuetify'
+  import ReceiptDialog from '@/components/ReceiptDialog.vue'
+  import { useCart } from '@/composables/useCart'
+  import { formatCurrency } from '@/utils/currency'
 
-const { mobile } = useDisplay();
+  const { mobile } = useDisplay()
 
-const paymentMethods: PaymentMethod[] = [
-  "Cash",
-  "Bank Transfer",
-  "QR Payment",
-  "Card Payment",
-];
+  const paymentMethods: PaymentMethod[] = [
+    'Cash',
+    'Bank Transfer',
+    'QR Payment',
+    'Card Payment',
+  ]
 
-const {
-  cartItems,
-  subtotal,
-  increaseQuantity,
-  decreaseQuantity,
-  removeItem,
-  checkout,
-} = useCart();
+  const {
+    cartItems,
+    subtotal,
+    increaseQuantity,
+    decreaseQuantity,
+    setQuantity,
+    removeItem,
+    checkout,
+  } = useCart()
 
-const discount = ref(0);
-const tax = ref(0);
-const paymentMethod = ref<PaymentMethod>("Cash");
-const receiptDialog = ref(false);
-const isCheckingOut = ref(false);
-const completedSale = ref<Sale | null>(null);
+  const discount = ref(0)
+  const tax = ref(0)
+  const paymentMethod = ref<PaymentMethod>('Cash')
+  const receiptDialog = ref(false)
+  const isCheckingOut = ref(false)
+  const completedSale = ref<Sale | null>(null)
 
-const snackbar = reactive({
-  show: false,
-  message: "",
-  color: "success",
-});
+  const snackbar = reactive({
+    show: false,
+    message: '',
+    color: 'success',
+  })
 
-const safeDiscount = computed(() => Math.max(0, Number(discount.value) || 0));
-const safeTax = computed(() => Math.max(0, Number(tax.value) || 0));
+  const safeDiscount = computed(() => Math.max(0, Number(discount.value) || 0))
+  const safeTax = computed(() => Math.max(0, Number(tax.value) || 0))
 
-const totalItems = computed(() =>
-  cartItems.value.reduce((total, item) => total + item.quantity, 0),
-);
+  const totalItems = computed(() =>
+    cartItems.value.reduce((total, item) => total + item.quantity, 0),
+  )
 
-const grandTotal = computed(() => {
-  return Math.max(0, subtotal.value - safeDiscount.value + safeTax.value);
-});
+  const grandTotal = computed(() => {
+    return Math.max(0, subtotal.value - safeDiscount.value + safeTax.value)
+  })
 
-const hasAdjustments = computed(() => {
-  return (
-    safeDiscount.value > 0 ||
-    safeTax.value > 0 ||
-    paymentMethod.value !== "Cash"
-  );
-});
+  const hasAdjustments = computed(() => {
+    return (
+      safeDiscount.value > 0
+      || safeTax.value > 0
+      || paymentMethod.value !== 'Cash'
+    )
+  })
 
-const canCheckout = computed(() => {
-  return cartItems.value.length > 0 && !isCheckingOut.value;
-});
+  const canCheckout = computed(() => {
+    return cartItems.value.length > 0 && !isCheckingOut.value
+  })
 
-function showMessage(message: string, color = "success") {
-  snackbar.message = message;
-  snackbar.color = color;
-  snackbar.show = true;
-}
-
-function handleIncrease(productId: number) {
-  const result = increaseQuantity(productId);
-
-  showMessage(result.message, result.ok ? "success" : "warning");
-}
-
-function resetAdjustments() {
-  discount.value = 0;
-  tax.value = 0;
-  paymentMethod.value = "Cash";
-}
-
-function paymentColor(method: PaymentMethod) {
-  if (method === "Cash") return "success";
-  if (method === "Bank Transfer") return "info";
-  if (method === "QR Payment") return "primary";
-  if (method === "Card Payment") return "deep-purple";
-
-  return "grey";
-}
-
-async function confirmCheckout() {
-  if (!canCheckout.value) return;
-
-  isCheckingOut.value = true;
-
-  try {
-    const result = await checkout(
-      safeDiscount.value,
-      safeTax.value,
-      paymentMethod.value,
-    );
-
-    if (!result.ok) {
-      showMessage(result.message, "error");
-      return;
-    }
-
-    completedSale.value = result.sale ?? null;
-    receiptDialog.value = true;
-    resetAdjustments();
-    showMessage(result.message, "success");
-  } finally {
-    isCheckingOut.value = false;
+  function showMessage (message: string, color = 'success') {
+    snackbar.message = message
+    snackbar.color = color
+    snackbar.show = true
   }
-}
+
+  function handleIncrease (productId: number) {
+    const result = increaseQuantity(productId)
+
+    showMessage(result.message, result.ok ? 'success' : 'warning')
+  }
+
+  function uomLabel (item: CartItem) {
+    return item.uom === 'batch' ? (item.batchUnit ?? 'batch') : 'item'
+  }
+
+  function handleSetQuantity (productId: number, event: Event) {
+    const input = event.target as HTMLInputElement
+    const result = setQuantity(productId, Number(input.value))
+
+    if (result && !result.ok) {
+      showMessage(result.message, 'warning')
+    }
+    // Reflect clamping even when reactivity didn't change the rendered value
+    const item = cartItems.value.find(i => i.productId === productId)
+    if (item) input.value = String(item.quantity)
+  }
+
+  function resetAdjustments () {
+    discount.value = 0
+    tax.value = 0
+    paymentMethod.value = 'Cash'
+  }
+
+  function paymentColor (method: PaymentMethod) {
+    if (method === 'Cash') return 'success'
+    if (method === 'Bank Transfer') return 'info'
+    if (method === 'QR Payment') return 'primary'
+    if (method === 'Card Payment') return 'deep-purple'
+
+    return 'grey'
+  }
+
+  async function confirmCheckout () {
+    if (!canCheckout.value) return
+
+    isCheckingOut.value = true
+
+    try {
+      const result = await checkout(
+        safeDiscount.value,
+        safeTax.value,
+        paymentMethod.value,
+      )
+
+      if (!result.ok) {
+        showMessage(result.message, 'error')
+        return
+      }
+
+      completedSale.value = result.sale ?? null
+      receiptDialog.value = true
+      resetAdjustments()
+      showMessage(result.message, 'success')
+    } finally {
+      isCheckingOut.value = false
+    }
+  }
 </script>
 
 <style scoped>
@@ -469,10 +498,22 @@ async function confirmCheckout() {
   border: 1px solid rgba(var(--v-theme-on-surface), 0.1);
 }
 
-.quantity-value {
-  min-width: 28px;
+.quantity-input {
+  width: 56px;
   text-align: center;
   font-weight: 700;
+  background: transparent;
+  color: rgb(var(--v-theme-on-surface));
+  border: none;
+  outline: none;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.quantity-input::-webkit-outer-spin-button,
+.quantity-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .summary-line {

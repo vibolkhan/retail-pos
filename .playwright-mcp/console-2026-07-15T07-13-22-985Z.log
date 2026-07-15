@@ -1,1 +1,3 @@
 [  176954ms] [INFO] Slow network is detected. See https://www.chromestatus.com/feature/5636954674692096 for more details. Fallback font will be used while loading: http://localhost:3000/node_modules/@mdi/font/fonts/materialdesignicons-webfont.woff2?v=7.4.47 @ http://localhost:3000/node_modules/.vite/deps/vuetify_components_VAppBar.js?v=b5e78ce0:207
+[ 1658405ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/@id/virtual:plugin-vuetify:styles/main.sass?t=1784101258033:0
+[ 1687375ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/@id/virtual:plugin-vuetify:styles/main.sass?t=1784101287384:0

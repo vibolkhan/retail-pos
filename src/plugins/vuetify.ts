@@ -84,7 +84,6 @@ export default createVuetify({
       lightBlueLight: lightBlueLightTheme,
       lightBlueDark: lightBlueDarkTheme,
     },
-    utilities: false,
   },
   display: {
     mobileBreakpoint: 'md',

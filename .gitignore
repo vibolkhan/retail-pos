@@ -27,7 +27,13 @@ pnpm-debug.log*
 playwright/*
 test-results/*
 playwright-report/*
+playwright-audit-output/
+.playwright-mcp/
 .vs
 server/data/
 .vercel
 .env*
+
+# Ad-hoc screenshots left at repo root
+/sales-prod-full.png
+/sales-prod-viewport.png

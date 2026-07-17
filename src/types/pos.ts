@@ -79,10 +79,3 @@ export interface Sale {
   // Joined client-side for display; never persisted
   branchName?: string
 }
-
-export interface User {
-  id: number
-  name: string
-  email: string
-  role: string
-}

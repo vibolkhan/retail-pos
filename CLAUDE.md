@@ -63,7 +63,9 @@ Products and stock are branch-scoped, and a branch's `type` (`'retail' | 'wholes
 
 ### Routing and pages
 
-Routes are declared manually in `src/router/index.ts` (no file-based routing) and map to `src/pages/*.vue`: `HomePage` (`/`, admin-only), `PosPage` (`/pos`), `CartPage` (`/cart`), `InventoryPage` (`/inventory`, admin-only), `OrderHistory` (`/sales`, admin-only), `LoginPage` (`/login`, public). `/carts` and `/home` are redirects kept for backward compatibility; unmatched paths redirect to `/`. See "Auth and role-based access" above for how `meta.roles`/`meta.public` are enforced.
+Routes are declared manually in `src/router/index.ts` (no file-based routing) and map to `src/pages/*.vue`: `HomePage` (`/`, admin-only), `PosPage` (`/pos`), `CartPage` (`/cart`), `InventoryPage` (`/inventory`, admin-only), `OrderHistory` (`/sales`, admin-only), `ProfitLossPage` (`/pnl`, admin-only), `LoginPage` (`/login`, public). `/carts` and `/home` are redirects kept for backward compatibility; unmatched paths redirect to `/`. See "Auth and role-based access" above for how `meta.roles`/`meta.public` are enforced.
+
+`ProfitLossPage.vue` exports a filtered sales report to PDF using `jspdf` + `jspdf-autotable` (dynamically imported); `HomePage.vue` renders a dashboard chart via `chart.js`. `pg` is a dependency but unused in `src/` — Postgres access goes through `@supabase/supabase-js`, not a direct client.
 
 ### Build/deploy
 

@@ -5,6 +5,27 @@
     <link rel="icon" href="/pos.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Retail POS</title>
+    <!--
+      Locks the global cascade-layer order before any other stylesheet
+      registers these names. Without this, Vite's production build emits
+      the per-component CSS chunks (e.g. VBtn-*.css) as <link> tags BEFORE
+      the main index-*.css chunk that carries src/styles/layers.css's
+      order statement — so a chunk like VBtn-*.css registers
+      "vuetify-components" as the very first layer the browser has ever
+      seen, ahead of Tailwind's layers, which silently inverts the
+      intended priority and lets Tailwind's preflight reset (padding/
+      margin/border: 0) beat Vuetify's component styles in production
+      only (dev serves CSS in module-execution order, so it isn't
+      affected). Keeping this order declaration inline guarantees it
+      parses first regardless of how the build chunks or orders any
+      other stylesheet.
+    -->
+    <style>
+      @layer tailwind-theme, tailwind-reset,
+        vuetify-core, vuetify-components, vuetify-overrides, vuetify-utilities,
+        tailwind-utilities,
+        vuetify-final;
+    </style>
   </head>
   <body>
     <div id="app"></div>

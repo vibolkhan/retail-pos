@@ -1,0 +1,7 @@
+[   98520ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:3000/@vite/client:992
+[   99621ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/@id/virtual:plugin-vuetify:components/VChipGroup/VChipGroup.sass:0
+[   99621ms] [WARNING] [Vue Router warn]: uncaught error during route navigation: @ http://localhost:3000/@vite/client:524
+[   99622ms] [ERROR] TypeError: Failed to fetch dynamically imported module: http://localhost:3000/src/pages/HomePage.vue @ http://localhost:3000/@vite/client:524
+[   99622ms] [WARNING] [Vue Router warn]: Unexpected error when starting the router: TypeError: Failed to fetch dynamically imported module: http://localhost:3000/src/pages/HomePage.vue @ http://localhost:3000/@vite/client:524
+[   99622ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/@id/virtual:plugin-vuetify:components/VChip/VChip.sass:0
+[   99623ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/@id/virtual:plugin-vuetify:components/VSlideGroup/VSlideGroup.sass:0

@@ -1,0 +1,144 @@
+- generic [ref=e4]:
+  - navigation [ref=e55]:
+    - generic [ref=e56]:
+      - generic [ref=e57]:
+        - generic [ref=e58]: 󱧜
+        - generic [ref=e60]: Retail POS
+      - button "Switch branch" [ref=e61] [cursor=pointer]:
+        - generic [ref=e62]: 󰓜
+        - generic [ref=e63]: Branch
+        - generic [ref=e64]: 󰅀
+      - list [ref=e65]:
+        - link "Home" [ref=e66] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e67]: 󰕮
+        - link "POS" [ref=e71] [cursor=pointer]:
+          - /url: /pos
+          - generic [ref=e72]: 󰳴
+        - link "Cart" [ref=e76] [cursor=pointer]:
+          - /url: /cart
+          - generic [ref=e77]: 󰄐
+        - link "Inventory" [ref=e81] [cursor=pointer]:
+          - /url: /inventory
+          - generic [ref=e82]: 󰾁
+        - link "Sales" [ref=e86] [cursor=pointer]:
+          - /url: /sales
+          - generic [ref=e87]: 󰋚
+        - link "P&L" [ref=e91] [cursor=pointer]:
+          - /url: /pnl
+          - generic [ref=e92]: 󰠟
+      - generic [ref=e97]:
+        - separator [ref=e98]
+        - generic [ref=e99]:
+          - generic [ref=e100]:
+            - generic [ref=e101]: admin@retailpos.test
+            - generic [ref=e102]: admin
+          - button "Toggle theme" [ref=e103] [cursor=pointer]:
+            - generic [ref=e104]: 󰖔
+          - button "Log out" [ref=e106] [cursor=pointer]:
+            - generic [ref=e107]: 󰍃
+  - main [ref=e5]:
+    - generic [ref=e109]:
+      - generic [ref=e110]:
+        - generic [ref=e111]:
+          - generic [ref=e112]: Filters
+          - button "Clear" [disabled]:
+            - generic: 󰈵
+        - generic [ref=e113]:
+          - generic [ref=e117]:
+            - generic [ref=e118]: 󰍉
+            - generic [ref=e120]:
+              - generic: Search sale ID, payment, or product
+              - textbox "Search sale ID, payment, or product" [ref=e121]
+            - text: 󰅙
+          - combobox [ref=e125] [cursor=pointer]:
+            - generic [ref=e126]: 󰓜
+            - generic [ref=e128]:
+              - generic: Branch
+              - generic [ref=e129]:
+                - combobox "Branch"
+            - text: 󰅙
+            - generic [ref=e130]: 󰍝
+          - generic [ref=e135]:
+            - generic [ref=e136]: 󱙭
+            - generic [ref=e138]:
+              - generic: Start Date
+              - textbox "Start Date" [ref=e139] [cursor=pointer]:
+                - /placeholder: Select start date
+            - text: 󰅙
+          - generic [ref=e143]:
+            - generic [ref=e144]: 󱙬
+            - generic [ref=e146]:
+              - generic: End Date
+              - textbox "End Date" [ref=e147] [cursor=pointer]:
+                - /placeholder: Select end date
+            - text: 󰅙
+      - generic [ref=e148]:
+        - table [ref=e150]:
+          - rowgroup [ref=e151]:
+            - row [ref=e152]:
+              - columnheader "Sale ID" [ref=e153]:
+                - generic [ref=e154]:
+                  - generic [ref=e155]: Sale ID
+                  - generic [ref=e156]: 󰁝
+              - columnheader "Date" [ref=e157]:
+                - generic [ref=e158]:
+                  - generic [ref=e159]: Date
+                  - generic [ref=e160]: 󰁝
+              - columnheader "Branch" [ref=e161]:
+                - generic [ref=e162]:
+                  - generic [ref=e163]: Branch
+                  - generic [ref=e164]: 󰁝
+              - columnheader "Items" [ref=e165]
+              - columnheader "Subtotal" [ref=e168]:
+                - generic [ref=e169]:
+                  - generic [ref=e170]: Subtotal
+                  - generic [ref=e171]: 󰁝
+              - columnheader "Discount" [ref=e172]:
+                - generic [ref=e173]:
+                  - generic [ref=e174]: Discount
+                  - generic [ref=e175]: 󰁝
+              - columnheader "Tax" [ref=e176]:
+                - generic [ref=e177]:
+                  - generic [ref=e178]: Tax
+                  - generic [ref=e179]: 󰁝
+              - columnheader "Total" [ref=e180]:
+                - generic [ref=e181]:
+                  - generic [ref=e182]: Total
+                  - generic [ref=e183]: 󰁝
+              - columnheader "Payment" [ref=e184]:
+                - generic [ref=e185]:
+                  - generic [ref=e186]: Payment
+                  - generic [ref=e187]: 󰁝
+              - columnheader "Invoice" [ref=e188]
+          - rowgroup [ref=e191]:
+            - row [ref=e192]:
+              - cell "No sales found No sales in this range Try changing your search or date filters." [ref=e193]:
+                - generic [ref=e194]:
+                  - generic [ref=e197]: No sales found
+                  - generic [ref=e198]: No sales in this range
+                  - generic [ref=e199]: Try changing your search or date filters.
+        - separator [ref=e200]
+        - generic [ref=e201]:
+          - generic [ref=e202]:
+            - generic [ref=e203]: "Items per page:"
+            - combobox [ref=e206] [cursor=pointer]:
+              - generic [ref=e208]:
+                - generic [ref=e209]: "10"
+                - combobox "Items per page:": "10"
+              - generic [ref=e211]: 󰍝
+          - generic [ref=e213]: 0-0 of 0
+          - navigation "Pagination Navigation" [ref=e216]:
+            - list [ref=e217]:
+              - listitem [ref=e218]:
+                - button "First page" [disabled]:
+                  - generic: 󰘀
+              - listitem [ref=e219]:
+                - button "Previous page" [disabled]:
+                  - generic: 󰅁
+              - listitem [ref=e220]:
+                - button "Next page" [disabled]:
+                  - generic: 󰅂
+              - listitem [ref=e221]:
+                - button "Last page" [disabled]:
+                  - generic: 󰘁

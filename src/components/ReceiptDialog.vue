@@ -11,7 +11,7 @@
       <v-card-text>
         <div class="mb-4">
           <div class="text-caption text-medium-emphasis">Sale ID</div>
-          <div class="font-weight-bold">{{ sale.id }}</div>
+          <div class="price-mono font-weight-bold">{{ sale.id }}</div>
         </div>
 
         <div class="mb-4">
@@ -39,7 +39,7 @@
                 </div>
               </td>
 
-              <td class="text-right">
+              <td class="price-mono text-right">
                 {{ formatCurrency(item.quantity * item.unitPrice) }}
               </td>
             </tr>
@@ -50,22 +50,22 @@
 
         <div class="d-flex justify-space-between mb-2">
           <span>Subtotal</span>
-          <strong>{{ formatCurrency(sale.subtotal) }}</strong>
+          <strong class="price-mono">{{ formatCurrency(sale.subtotal) }}</strong>
         </div>
 
         <div class="d-flex justify-space-between mb-2">
           <span>Discount</span>
-          <strong>-{{ formatCurrency(sale.discount) }}</strong>
+          <strong class="price-mono text-error">-{{ formatCurrency(sale.discount) }}</strong>
         </div>
 
         <div class="d-flex justify-space-between mb-2">
           <span>Tax</span>
-          <strong>{{ formatCurrency(sale.tax) }}</strong>
+          <strong class="price-mono">{{ formatCurrency(sale.tax) }}</strong>
         </div>
 
         <div class="d-flex justify-space-between text-h6">
           <span>Grand Total</span>
-          <strong>{{ formatCurrency(sale.grandTotal) }}</strong>
+          <strong class="price-mono text-primary">{{ formatCurrency(sale.grandTotal) }}</strong>
         </div>
 
         <v-chip class="mt-4" color="success" variant="tonal">
@@ -104,5 +104,9 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
+}
+.price-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 </style>

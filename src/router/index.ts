@@ -46,6 +46,11 @@ const router = createRouter({
       meta: { roles: ['admin'] },
     },
     {
+      path: '/pnl',
+      component: () => import('@/pages/ProfitLossPage.vue'),
+      meta: { roles: ['admin'] },
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('@/pages/LoginPage.vue'),
@@ -62,7 +67,12 @@ function roleHome(isAdmin: boolean) {
 
 router.beforeEach(async to => {
   const authStore = useAuthStore()
-  await authStore.init()
+  try {
+    await authStore.init()
+  } catch {
+    // init() resets itself for a retry on the next navigation; fall through
+    // to the unauthenticated path below instead of aborting this navigation.
+  }
 
   if (to.meta.public) {
     if (to.name === 'login' && authStore.isAuthenticated && authStore.role) {

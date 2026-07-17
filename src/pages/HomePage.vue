@@ -16,7 +16,7 @@
         </h1>
 
         <p class="text-body-1 text-medium-emphasis mb-5">
-          Manage sales, products, and cart activity from a SQLite-backed dashboard.
+          {{ todayLabel }} — here's how the floor is doing.
         </p>
 
         <v-btn
@@ -29,38 +29,68 @@
           Start Selling
         </v-btn>
       </v-col>
-
-      <v-col cols="12" md="5">
-        <section class="system-summary">
-          <div>
-            <div class="text-overline text-primary">Today</div>
-            <div class="text-h5 font-weight-bold mb-2">{{ todayLabel }}</div>
-
-            <div class="summary-grid">
-              <span>Sales: {{ todaySales.length }}</span>
-              <span>Revenue: {{ formatCurrency(todayRevenue) }}</span>
-              <span>Cart Items: {{ itemCount }}</span>
-              <span>Cart Value: {{ formatCurrency(subtotal) }}</span>
-            </div>
-          </div>
-        </section>
-      </v-col>
     </v-row>
 
     <v-alert v-if="errorMessage" class="mb-4" type="error" variant="tonal">
       {{ errorMessage }}
     </v-alert>
 
+    <v-row class="mb-2">
+      <v-col cols="6" md="3">
+        <v-card class="kpi-tile" rounded="lg" variant="flat">
+          <div class="kpi-top">
+            <span class="kpi-label">Sales today</span>
+            <span class="kpi-icon"><v-icon icon="mdi-receipt-text-check-outline" size="16" /></span>
+          </div>
+
+          <div class="kpi-value">{{ todaySales.length }}</div>
+        </v-card>
+      </v-col>
+
+      <v-col cols="6" md="3">
+        <v-card class="kpi-tile" rounded="lg" variant="flat">
+          <div class="kpi-top">
+            <span class="kpi-label">Revenue today</span>
+            <span class="kpi-icon"><v-icon icon="mdi-currency-usd" size="16" /></span>
+          </div>
+
+          <div class="kpi-value">{{ formatCurrency(todayRevenue) }}</div>
+        </v-card>
+      </v-col>
+
+      <v-col cols="6" md="3">
+        <v-card class="kpi-tile" rounded="lg" variant="flat">
+          <div class="kpi-top">
+            <span class="kpi-label">Items in cart</span>
+            <span class="kpi-icon"><v-icon icon="mdi-cart-outline" size="16" /></span>
+          </div>
+
+          <div class="kpi-value">{{ itemCount }}</div>
+        </v-card>
+      </v-col>
+
+      <v-col cols="6" md="3">
+        <v-card class="kpi-tile" rounded="lg" variant="flat">
+          <div class="kpi-top">
+            <span class="kpi-label">Cart value</span>
+            <span class="kpi-icon"><v-icon icon="mdi-clock-outline" size="16" /></span>
+          </div>
+
+          <div class="kpi-value">{{ formatCurrency(subtotal) }}</div>
+        </v-card>
+      </v-col>
+    </v-row>
+
     <v-row class="chart-grid">
       <v-col cols="12" lg="5">
         <section class="chart-panel chart-panel--primary">
           <div class="chart-header">
-            <div>
-              <div class="text-overline text-primary">System Flow</div>
-              <h2 class="text-h6 font-weight-bold">Retail POS activity map</h2>
-            </div>
+            <span class="panel-icon"><v-icon icon="mdi-chart-donut" size="14" /></span>
 
-            <v-icon color="primary" icon="mdi-chart-donut" />
+            <div>
+              <h2 class="text-subtitle-2 font-weight-bold">Retail POS activity map</h2>
+              <div class="text-caption text-medium-emphasis">System flow, today</div>
+            </div>
           </div>
 
           <div class="chart-frame">
@@ -72,9 +102,11 @@
       <v-col cols="12" lg="7">
         <section class="chart-panel">
           <div class="chart-header">
+            <span class="panel-icon"><v-icon icon="mdi-chart-line" size="14" /></span>
+
             <div>
-              <div class="text-overline text-success">Revenue</div>
-              <h2 class="text-h6 font-weight-bold">Last 7 days sales trend</h2>
+              <h2 class="text-subtitle-2 font-weight-bold">Last 7 days sales trend</h2>
+              <div class="text-caption text-medium-emphasis">Revenue</div>
             </div>
 
             <span class="metric-pill">{{ formatCurrency(totalRevenue) }}</span>
@@ -89,12 +121,14 @@
       <v-col cols="12">
         <section class="chart-panel">
           <div class="chart-header">
-            <div>
-              <div class="text-overline text-warning">Inventory</div>
+            <span class="panel-icon"><v-icon icon="mdi-warehouse" size="14" /></span>
 
-              <h2 class="text-h6 font-weight-bold">
+            <div>
+              <h2 class="text-subtitle-2 font-weight-bold">
                 Stock by product category{{ branchStore.isWholesale ? ' (wholesale)' : '' }}
               </h2>
+
+              <div class="text-caption text-medium-emphasis">Inventory</div>
             </div>
 
             <span class="metric-pill">{{ products.length }} products</span>
@@ -113,6 +147,7 @@
   import type { Product, Sale } from '@/types/pos'
   import { Chart, type ChartConfiguration, registerables } from 'chart.js'
   import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+  import { useTheme } from 'vuetify'
   import { useCart } from '@/composables/useCart'
   import { getProducts, getSales } from '@/composables/useSupabase'
   import { useBranchStore } from '@/stores/branch'
@@ -120,6 +155,7 @@
 
   Chart.register(...registerables)
 
+  const theme = useTheme()
   const branchStore = useBranchStore()
   const products = ref<Product[]>([])
   const allSales = ref<Sale[]>([])
@@ -203,8 +239,28 @@
       .slice(0, 8)
   })
 
+  function themeHex (name: string) {
+    const value = theme.current.value.colors[name as keyof typeof theme.current.value.colors]
+    return typeof value === 'string' ? value : '#0E6E64'
+  }
+
+  function withAlpha (hex: string, alpha: number) {
+    const int = Number.parseInt(hex.replace('#', ''), 16)
+    const r = (int >> 16) & 255
+    const g = (int >> 8) & 255
+    const b = int & 255
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  }
+
   function buildCharts () {
     destroyCharts()
+
+    const teal = themeHex('primary')
+    const copper = themeHex('wholesale')
+    const success = themeHex('success')
+    const warning = themeHex('warning')
+    const axisColor = withAlpha(themeHex('on-surface-variant'), 0.7)
+    const gridColor = withAlpha(themeHex('on-surface-variant'), 0.12)
 
     const flowChartConfig: ChartConfiguration<'doughnut'> = {
       type: 'doughnut',
@@ -218,7 +274,7 @@
               todaySales.value.length,
               sales.value.length,
             ].map(value => Math.max(value, 1)),
-            backgroundColor: ['#1867c0', '#00bcd4', '#4caf50', '#ff9800'],
+            backgroundColor: [teal, copper, success, warning],
             borderWidth: 0,
             hoverOffset: 8,
           },
@@ -230,6 +286,7 @@
         plugins: {
           legend: {
             position: 'bottom',
+            labels: { color: axisColor },
           },
         },
       },
@@ -243,11 +300,11 @@
           {
             label: 'Revenue',
             data: sevenDayRevenue.value.map(day => day.total),
-            borderColor: '#2e7d32',
-            backgroundColor: 'rgba(46, 125, 50, 0.14)',
+            borderColor: teal,
+            backgroundColor: withAlpha(teal, 0.14),
             fill: true,
             tension: 0.35,
-            pointBackgroundColor: '#2e7d32',
+            pointBackgroundColor: teal,
           },
         ],
       },
@@ -259,11 +316,14 @@
           },
         },
         scales: {
+          x: { ticks: { color: axisColor }, grid: { color: gridColor } },
           y: {
             beginAtZero: true,
             ticks: {
+              color: axisColor,
               callback: value => formatCurrency(Number(value)),
             },
+            grid: { color: gridColor },
           },
         },
       },
@@ -277,8 +337,8 @@
           {
             label: 'Stock',
             data: stockByCategory.value.map(([, stock]) => stock),
-            backgroundColor: '#fb8c00',
-            borderRadius: 8,
+            backgroundColor: copper,
+            borderRadius: 6,
           },
         ],
       },
@@ -290,9 +350,8 @@
           },
         },
         scales: {
-          y: {
-            beginAtZero: true,
-          },
+          x: { ticks: { color: axisColor }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: axisColor }, grid: { color: gridColor } },
         },
       },
     }
@@ -347,30 +406,63 @@
     loadDashboard()
   })
 
+  // Chart.js draws colors onto canvas pixels, so a light/dark toggle needs
+  // an explicit rebuild — CSS variables alone won't repaint it.
+  watch(() => theme.current.value.dark, () => {
+    buildCharts()
+  })
+
   onBeforeUnmount(() => {
     destroyCharts()
   })
 </script>
 
 <style scoped>
-.system-summary,
 .chart-panel {
   border: 1px solid rgba(var(--v-border-color), 0.16);
-  border-radius: 8px;
+  border-radius: 10px;
   background: rgb(var(--v-theme-surface));
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 2px rgba(var(--v-theme-on-surface), 0.06);
 }
 
-.system-summary {
-  padding: 1.5rem;
+.kpi-tile {
+  border: 1px solid rgba(var(--v-border-color), 0.16);
+  padding: 14px 16px;
+  height: 100%;
 }
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-  color: rgba(var(--v-theme-on-surface), 0.7);
-  font-size: 0.875rem;
+.kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.kpi-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+}
+
+.kpi-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-primary), 0.1);
+  color: rgb(var(--v-theme-primary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.kpi-value {
+  font-family: var(--font-heading);
+  font-size: 1.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .chart-grid {
@@ -391,9 +483,20 @@
 .chart-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.panel-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: rgba(var(--v-theme-on-surface), 0.06);
+  color: rgb(var(--v-theme-primary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
 }
 
 .chart-frame {
@@ -406,6 +509,7 @@
 }
 
 .metric-pill {
+  margin-left: auto;
   border-radius: 999px;
   background: rgba(var(--v-theme-primary), 0.1);
   color: rgb(var(--v-theme-primary));
@@ -416,13 +520,13 @@
 }
 
 @media (max-width: 600px) {
-  .summary-grid {
-    grid-template-columns: 1fr;
-  }
-
   .chart-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .metric-pill {
+    margin-left: 0;
   }
 
   .chart-frame,

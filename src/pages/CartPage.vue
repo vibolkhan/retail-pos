@@ -3,10 +3,11 @@
     <v-row>
       <!-- Cart Items -->
       <v-col cols="12" lg="8">
-        <v-card class="cart-card" rounded="xl" variant="flat">
+        <v-card class="cart-card" rounded="lg" variant="flat">
           <v-empty-state
             v-if="cartItems.length === 0"
             class="py-10"
+            color="primary"
             headline="Cart is empty"
             icon="mdi-cart-off"
             text="Add products from the POS page before checkout."
@@ -19,73 +20,11 @@
             </template>
           </v-empty-state>
 
-          <div v-else-if="mobile" class="cart-card-list">
-            <div v-for="item in cartItems" :key="item.productId" class="cart-item-card">
-              <div class="d-flex align-center ga-3">
-                <v-avatar rounded="lg" size="52">
-                  <v-img cover :src="item.image" />
-                </v-avatar>
-
-                <div class="flex-grow-1">
-                  <div class="font-weight-bold">{{ item.name }}</div>
-
-                  <div class="text-caption text-medium-emphasis">
-                    Code: {{ item.code }}
-                  </div>
-
-                  <v-chip class="mt-1" color="primary" size="x-small" variant="tonal">
-                    {{ formatCurrency(item.unitPrice) }} / {{ uomLabel(item) }}
-                  </v-chip>
-                </div>
-
-                <v-btn
-                  color="error"
-                  icon="mdi-delete-outline"
-                  variant="text"
-                  @click="removeItem(item.productId)"
-                />
-              </div>
-
-              <v-divider class="my-3" />
-
-              <div class="d-flex align-center justify-space-between">
-                <div class="quantity-control">
-                  <v-btn
-                    density="comfortable"
-                    :disabled="item.quantity <= 1"
-                    icon="mdi-minus"
-                    size="small"
-                    variant="tonal"
-                    @click="decreaseQuantity(item.productId)"
-                  />
-
-                  <input
-                    class="quantity-input"
-                    min="1"
-                    type="number"
-                    :value="item.quantity"
-                    @change="handleSetQuantity(item.productId, $event)"
-                  >
-
-                  <v-btn
-                    color="primary"
-                    density="comfortable"
-                    icon="mdi-plus"
-                    size="small"
-                    variant="tonal"
-                    @click="handleIncrease(item.productId)"
-                  />
-                </div>
-
-                <strong class="text-h6">
-                  {{ formatCurrency(item.unitPrice * item.quantity) }}
-                </strong>
-              </div>
-            </div>
-          </div>
-
+          <!-- One table for every viewport — it scrolls horizontally
+               on narrow screens instead of branching into a separate
+               hand-rolled card list, matching Inventory/Sales History. -->
           <div v-else class="cart-table-wrapper">
-            <v-table class="pos-data-table cart-table" density="comfortable" rounded="xl">
+            <v-table class="pos-data-table cart-table" density="comfortable" rounded="lg">
               <thead>
                 <tr>
                   <th>Product</th>
@@ -153,11 +92,11 @@
                     </div>
                   </td>
 
-                  <td class="text-right">
+                  <td class="price-mono text-right">
                     {{ formatCurrency(item.unitPrice) }}
                   </td>
 
-                  <td class="text-right">
+                  <td class="price-mono text-right">
                     <strong>
                       {{ formatCurrency(item.unitPrice * item.quantity) }}
                     </strong>
@@ -185,29 +124,29 @@
 
       <!-- Payment Summary -->
       <v-col cols="12" lg="4">
-        <v-card class="payment-card" rounded="xl" variant="flat">
+        <v-card class="payment-card" rounded="lg" variant="flat">
           <div class="summary-line">
             <span>Subtotal</span>
-            <strong>{{ formatCurrency(subtotal) }}</strong>
+            <strong class="price-mono">{{ formatCurrency(subtotal) }}</strong>
           </div>
 
           <div class="summary-line">
             <span>Discount</span>
 
-            <strong class="text-error">
+            <strong class="price-mono text-error">
               -{{ formatCurrency(safeDiscount) }}
             </strong>
           </div>
 
           <div class="summary-line">
             <span>Tax</span>
-            <strong>{{ formatCurrency(safeTax) }}</strong>
+            <strong class="price-mono">{{ formatCurrency(safeTax) }}</strong>
           </div>
 
           <v-divider class="my-4" />
 
           <v-row density="comfortable">
-            <v-col cols="12" lg="12" sm="6">
+            <v-col cols="12" sm="6">
               <v-text-field
                 v-model.number="discount"
                 density="comfortable"
@@ -222,7 +161,7 @@
               />
             </v-col>
 
-            <v-col cols="12" lg="12" sm="6">
+            <v-col cols="12" sm="6">
               <v-text-field
                 v-model.number="tax"
                 density="comfortable"
@@ -238,16 +177,22 @@
             </v-col>
 
             <v-col cols="12">
-              <v-select
-                v-model="paymentMethod"
-                density="comfortable"
-                hide-details
-                :items="paymentMethods"
-                label="Payment Method"
-                prepend-inner-icon="mdi-credit-card-outline"
-                rounded="lg"
-                variant="outlined"
-              />
+              <div class="text-caption text-medium-emphasis font-weight-bold mb-2">
+                Payment method
+              </div>
+
+              <div class="payment-chip-row">
+                <v-chip
+                  v-for="method in paymentMethods"
+                  :key="method"
+                  class="font-weight-bold"
+                  :color="paymentColor(method)"
+                  :variant="paymentMethod === method ? 'flat' : 'outlined'"
+                  @click="paymentMethod = method"
+                >
+                  {{ method }}
+                </v-chip>
+              </div>
             </v-col>
           </v-row>
 
@@ -257,7 +202,7 @@
             <div>
               <div class="text-caption text-medium-emphasis">Amount to Pay</div>
 
-              <div class="text-h5 font-weight-bold text-primary">
+              <div class="price-mono text-h5 font-weight-bold text-primary">
                 {{ formatCurrency(grandTotal) }}
               </div>
             </div>
@@ -296,21 +241,18 @@
 
     <ReceiptDialog v-model="receiptDialog" :sale="completedSale" />
 
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
-      {{ snackbar.message }}
-    </v-snackbar>
   </v-container>
 </template>
 
 <script lang="ts" setup>
   import type { CartItem, PaymentMethod, Sale } from '@/types/pos'
-  import { computed, reactive, ref } from 'vue'
-  import { useDisplay } from 'vuetify'
+  import { computed, ref } from 'vue'
   import ReceiptDialog from '@/components/ReceiptDialog.vue'
   import { useCart } from '@/composables/useCart'
+  import { useToast } from '@/composables/useToast'
   import { formatCurrency } from '@/utils/currency'
 
-  const { mobile } = useDisplay()
+  const toast = useToast()
 
   const paymentMethods: PaymentMethod[] = [
     'Cash',
@@ -336,12 +278,6 @@
   const isCheckingOut = ref(false)
   const completedSale = ref<Sale | null>(null)
 
-  const snackbar = reactive({
-    show: false,
-    message: '',
-    color: 'success',
-  })
-
   const safeDiscount = computed(() => Math.max(0, Number(discount.value) || 0))
   const safeTax = computed(() => Math.max(0, Number(tax.value) || 0))
 
@@ -365,16 +301,10 @@
     return cartItems.value.length > 0 && !isCheckingOut.value
   })
 
-  function showMessage (message: string, color = 'success') {
-    snackbar.message = message
-    snackbar.color = color
-    snackbar.show = true
-  }
-
   function handleIncrease (productId: number) {
     const result = increaseQuantity(productId)
 
-    showMessage(result.message, result.ok ? 'success' : 'warning')
+    toast.show(result.message, result.ok ? 'success' : 'warning')
   }
 
   function uomLabel (item: CartItem) {
@@ -386,7 +316,7 @@
     const result = setQuantity(productId, Number(input.value))
 
     if (result && !result.ok) {
-      showMessage(result.message, 'warning')
+      toast.show(result.message, 'warning')
     }
     // Reflect clamping even when reactivity didn't change the rendered value
     const item = cartItems.value.find(i => i.productId === productId)
@@ -421,14 +351,14 @@
       )
 
       if (!result.ok) {
-        showMessage(result.message, 'error')
+        toast.show(result.message, 'error')
         return
       }
 
       completedSale.value = result.sale ?? null
       receiptDialog.value = true
       resetAdjustments()
-      showMessage(result.message, 'success')
+      toast.show(result.message, 'success')
     } finally {
       isCheckingOut.value = false
     }
@@ -439,6 +369,17 @@
 .checkout-page {
   background: rgb(var(--v-theme-background));
   min-height: 100vh;
+}
+
+.price-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.payment-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .summary-card {
@@ -468,20 +409,25 @@
 }
 
 .cart-table-wrapper {
+  position: relative;
   overflow-x: auto;
 }
 
-.cart-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-}
-
-.cart-item-card {
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.1);
-  border-radius: 12px;
-  padding: 12px;
+/* On narrow screens the table (Product/Quantity/Price/Subtotal/Action)
+   is wider than the viewport and scrolls horizontally inside Vuetify's own
+   .v-table__wrapper — this fade is the only hint that more columns (price,
+   remove) are reachable by swiping, since nothing else here suggests it. */
+@media (max-width: 840px) {
+  .cart-table-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 28px;
+    background: linear-gradient(to right, transparent, rgb(var(--v-theme-surface)));
+    pointer-events: none;
+  }
 }
 
 .cart-table :deep(th) {

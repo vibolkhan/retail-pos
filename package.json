@@ -12,14 +12,18 @@
     "lint:fix": "eslint --fix"
   },
   "dependencies": {
-    "@fontsource/roboto": "^5.2.10",
-    "@fontsource/roboto-mono": "^5.2.8",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/ibm-plex-sans": "^5.2.8",
+    "@fontsource/oswald": "^5.2.8",
     "@mdi/font": "7.4.47",
     "@supabase/supabase-js": "^2.109.0",
     "chart.js": "^4.5.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "pg": "^8.22.0",
     "pinia": "^3.0.4",
     "vue": "^3.5.30",
+    "vue-advanced-cropper": "^2.8.9",
     "vue-i18n": "^11.3.0",
     "vue-router": "^5.0.3",
     "vuetify": "^4.0.2"

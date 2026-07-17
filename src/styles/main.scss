@@ -47,20 +47,21 @@
   .text-info {
     color: rgb(var(--v-theme-info)) !important;
   }
+
+  .bg-wholesale {
+    background-color: rgb(var(--v-theme-wholesale)) !important;
+    color: rgb(var(--v-theme-on-wholesale)) !important;
+  }
+
+  .text-wholesale {
+    color: rgb(var(--v-theme-wholesale)) !important;
+  }
 }
 
-/* Premium UI */
 body {
-  font-family: 'Inter', sans-serif;
-  background: linear-gradient(135deg, #071923, #0D2433);
+  font-family: var(--font-body);
+  background: rgb(var(--v-theme-background));
   color: rgb(var(--v-theme-on-surface));
-}
-
-.glass {
-  background: rgba(var(--v-theme-surface), 0.7);
-  backdrop-filter: blur(12px);
-  border-radius: 12px;
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
 }
 
 .v-data-table .v-data-table__tr:hover {
@@ -68,11 +69,13 @@ body {
   transition: background-color 0.2s;
 }
 
-/* Shared "premium" table look for every data table / v-table in the app
-   (POS cart, inventory, sales history). Keeping this in one place avoids
-   the three pages drifting out of sync with each other. */
+/* Shared table look for every data table / v-table in the app (POS cart,
+   inventory, sales history). Restrained radius, hairline rows, no zebra
+   striping (it fought the status chips for attention), teal hover. Keeping
+   this in one place avoids the three pages drifting out of sync. */
 .pos-data-table {
-  border-radius: 20px;
+  border-radius: 10px;
+  border: 1px solid rgba(var(--v-border-color), 0.16);
   overflow: hidden;
 }
 
@@ -80,7 +83,10 @@ body {
   background: rgb(var(--v-theme-surface-variant));
   color: rgb(var(--v-theme-on-surface-variant));
   font-weight: 700;
-  border-bottom: 2px solid rgba(var(--v-theme-primary), 0.18);
+  font-size: 0.6875rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(var(--v-border-color), 0.16);
 }
 
 .pos-data-table table > tbody > tr > td {
@@ -91,12 +97,26 @@ body {
   border-bottom: none;
 }
 
-.pos-data-table table > tbody > tr:nth-of-type(even) {
-  background: rgba(var(--v-theme-on-surface), 0.03);
+.pos-data-table table > tbody > tr:hover {
+  background: rgba(var(--v-theme-primary), 0.08) !important;
 }
 
-.pos-data-table table > tbody > tr:hover {
-  background: rgba(var(--v-theme-primary), 0.07) !important;
+/* Icon-in-tinted-roundel pattern for every empty state in the app (Cart,
+   POS, Sales history no-data). One rule here instead of repeating the
+   roundel per page keeps them in sync. */
+.v-empty-state__media {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-primary), 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 18px;
+}
+
+.v-empty-state__media .v-icon {
+  font-size: 24px;
 }
 
 @layer vuetify-final {

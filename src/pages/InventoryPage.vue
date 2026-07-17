@@ -1,13 +1,6 @@
 <template>
   <v-container class="py-6" fluid>
-    <div
-      style="
-        display: flex;
-        justify-content: flex-end;
-        width: 100%;
-        margin-bottom: 16px;
-      "
-    >
+    <div class="d-flex justify-end mb-4">
       <v-btn
         color="primary"
         prepend-icon="mdi-plus"
@@ -57,7 +50,7 @@
       :items-per-page="10"
       :loading="loading"
       mobile-breakpoint="md"
-      rounded="xl"
+      rounded="lg"
     >
       <template #item.product="{ item }">
         <div class="d-flex align-center ga-3 py-2">
@@ -82,12 +75,13 @@
       </template>
 
       <template #item.price="{ item }">
-        {{ formatCurrency(item.price) }}
+        <span class="price-mono">{{ formatCurrency(item.price) }}</span>
       </template>
 
       <template #item.batchPrice="{ item }">
         <template v-if="item.batchPrice && item.batchSize">
-          {{ formatCurrency(item.batchPrice) }}
+          <span class="price-mono">{{ formatCurrency(item.batchPrice) }}</span>
+
           <div class="text-caption text-medium-emphasis">
             {{ item.batchSize }} / {{ item.batchUnit ?? 'batch' }}
           </div>
@@ -119,7 +113,7 @@
       <template #item.channels="{ item }">
         <div class="d-flex ga-1">
           <v-chip
-            :color="item.sellableRetail ? 'success' : 'grey'"
+            :color="item.sellableRetail ? 'primary' : 'grey'"
             size="small"
             variant="tonal"
           >
@@ -127,7 +121,7 @@
           </v-chip>
 
           <v-chip
-            :color="item.sellableWholesale ? 'info' : 'grey'"
+            :color="item.sellableWholesale ? 'wholesale' : 'grey'"
             size="small"
             variant="tonal"
           >
@@ -172,6 +166,57 @@
 
           <v-card-text>
             <v-row>
+              <v-col class="form-section-label" cols="12">
+                Product photo
+              </v-col>
+
+              <v-col cols="12">
+                <div
+                  class="image-dropzone"
+                  :class="{ 'has-image': imagePreviewUrl, 'is-dragover': isImageDragOver }"
+                  role="button"
+                  tabindex="0"
+                  @click="triggerFilePicker"
+                  @dragleave.prevent="isImageDragOver = false"
+                  @dragover.prevent="isImageDragOver = true"
+                  @drop.prevent="onImageDrop"
+                  @keydown.enter="triggerFilePicker"
+                >
+                  <input
+                    ref="fileInputRef"
+                    accept="image/*"
+                    class="hidden"
+                    type="file"
+                    @change="onFileInputChange"
+                  >
+
+                  <template v-if="imagePreviewUrl">
+                    <v-img class="image-dropzone-preview" cover :src="imagePreviewUrl" />
+
+                    <div class="image-dropzone-overlay">
+                      <v-icon icon="mdi-image-edit-outline" size="28" />
+                      <span class="text-body-2 font-weight-medium">Change photo</span>
+                    </div>
+                  </template>
+
+                  <template v-else>
+                    <v-icon class="opacity-50" icon="mdi-tray-arrow-up" size="40" />
+
+                    <div class="text-body-2 font-weight-medium mt-2">
+                      Drag &amp; drop an image, or click to browse
+                    </div>
+
+                    <div class="text-caption text-medium-emphasis mt-1">
+                      PNG or JPG. You'll be able to crop it to a square before saving.
+                    </div>
+                  </template>
+                </div>
+              </v-col>
+
+              <v-col class="form-section-label" cols="12">
+                Basic info
+              </v-col>
+
               <v-col cols="12" md="6">
                 <v-text-field
                   v-model="form.name"
@@ -211,6 +256,10 @@
                 />
               </v-col>
 
+              <v-col class="form-section-label" cols="12">
+                Pricing &amp; wholesale
+              </v-col>
+
               <v-col cols="12" md="4">
                 <v-text-field
                   v-model.number="form.price"
@@ -228,12 +277,14 @@
                   v-model="form.batchUnit"
                   density="comfortable"
                   :disabled="!form.sellableWholesale"
-                  hint="Required when sold wholesale"
                   :items="batchUnitPresets"
-                  label="Wholesale batch unit"
-                  persistent-hint
                   variant="outlined"
-                />
+                >
+                  <template #label>
+                    Wholesale batch unit
+                    <span v-if="form.sellableWholesale" class="required-asterisk">*</span>
+                  </template>
+                </v-combobox>
               </v-col>
 
               <v-col cols="12" md="4">
@@ -241,13 +292,15 @@
                   v-model.number="form.batchSize"
                   density="comfortable"
                   :disabled="!form.sellableWholesale"
-                  hint="Required when sold wholesale"
-                  label="Units per batch"
                   min="1"
-                  persistent-hint
                   type="number"
                   variant="outlined"
-                />
+                >
+                  <template #label>
+                    Units per batch
+                    <span v-if="form.sellableWholesale" class="required-asterisk">*</span>
+                  </template>
+                </v-text-field>
               </v-col>
 
               <v-col cols="12" md="4">
@@ -255,14 +308,20 @@
                   v-model.number="form.batchPrice"
                   density="comfortable"
                   :disabled="!form.sellableWholesale"
-                  hint="Required when sold wholesale"
-                  label="Batch price"
                   min="0"
-                  persistent-hint
                   prefix="$"
                   type="number"
                   variant="outlined"
-                />
+                >
+                  <template #label>
+                    Batch price
+                    <span v-if="form.sellableWholesale" class="required-asterisk">*</span>
+                  </template>
+                </v-text-field>
+              </v-col>
+
+              <v-col class="form-section-label" cols="12">
+                Stock by branch
               </v-col>
 
               <v-col
@@ -281,21 +340,13 @@
                 />
               </v-col>
 
-              <v-col cols="12">
-                <v-text-field
-                  v-model="form.image"
-                  density="comfortable"
-                  label="Image URL"
-                  prepend-inner-icon="mdi-image"
-                  variant="outlined"
-                />
+              <v-col class="form-section-label" cols="12">
+                Channels
               </v-col>
 
               <v-col cols="12" md="6">
                 <v-switch
                   v-model="form.sellableRetail"
-                  base-color="red"
-                  class="custom-switch"
                   color="primary"
                   hide-details
                   inset
@@ -306,9 +357,7 @@
               <v-col cols="12" md="6">
                 <v-switch
                   v-model="form.sellableWholesale"
-                  base-color="red"
-                  class="custom-switch"
-                  color="primary"
+                  color="wholesale"
                   hide-details
                   inset
                   label="Sell in Wholesale"
@@ -335,9 +384,44 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
-      {{ snackbar.message }}
-    </v-snackbar>
+    <v-dialog v-model="cropDialogOpen" max-width="480" persistent>
+      <v-card>
+        <v-card-title class="receipt-title">
+          <span class="flex-grow-1">Crop image</span>
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" @click="cancelCrop" />
+        </v-card-title>
+
+        <v-divider />
+
+        <v-card-text class="pa-4">
+          <div class="cropper-wrap">
+            <cropper
+              v-if="cropSourceUrl"
+              ref="cropperRef"
+              class="cropper"
+              :src="cropSourceUrl"
+              :stencil-props="{ aspectRatio: 1 }"
+            />
+          </div>
+
+          <div class="text-caption text-medium-emphasis mt-2">
+            Drag to reposition, resize the square to crop.
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer />
+
+          <v-btn variant="text" @click="cancelCrop"> Cancel </v-btn>
+
+          <v-btn color="primary" variant="flat" @click="applyCrop">
+            Apply crop
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
   </v-container>
 </template>
 
@@ -349,14 +433,18 @@
   } from '@/composables/useSupabase'
   import type { BranchType, Category } from '@/types/pos'
   import { computed, onMounted, reactive, ref } from 'vue'
+  import { Cropper } from 'vue-advanced-cropper'
   import {
     createProductInventory,
     getCategories,
     getInventoryProducts,
     updateProductInventory,
+    uploadProductImage,
   } from '@/composables/useSupabase'
+  import { useToast } from '@/composables/useToast'
   import { useBranchStore } from '@/stores/branch'
   import { formatCurrency } from '@/utils/currency'
+  import 'vue-advanced-cropper/dist/style.css'
 
   type DialogMode = 'create' | 'edit'
   type ChannelFilter = 'all' | 'retail' | 'wholesale' | 'both' | 'hidden'
@@ -380,6 +468,7 @@
   const batchUnitPresets = ['Case', 'Box', 'Pack', 'Dozen', 'Bundle']
 
   const branchStore = useBranchStore()
+  const toast = useToast()
   const products = ref<InventoryProduct[]>([])
   const categories = ref<Category[]>([])
   const loading = ref(true)
@@ -390,11 +479,16 @@
   const dialogOpen = ref(false)
   const dialogMode = ref<DialogMode>('create')
   const form = reactive<ProductForm>(emptyForm())
-  const snackbar = reactive({
-    show: false,
-    message: '',
-    color: 'success',
-  })
+  const imageFile = ref<File | null>(null)
+  const imagePreviewUrl = ref<string | null>(null)
+  const fileInputRef = ref<HTMLInputElement | null>(null)
+  const isImageDragOver = ref(false)
+  let imageObjectUrl: string | null = null
+  const cropDialogOpen = ref(false)
+  const cropSourceUrl = ref<string | null>(null)
+  const cropperRef = ref<InstanceType<typeof Cropper> | null>(null)
+  let cropSourceObjectUrl: string | null = null
+  const CROP_OUTPUT_SIZE = 640
 
   const headers = [
     { title: 'Product', value: 'product', sortable: false },
@@ -472,19 +566,95 @@
     return 'success'
   }
 
-  function showMessage (message: string, color = 'success') {
-    snackbar.message = message
-    snackbar.color = color
-    snackbar.show = true
+  function closeCropDialog () {
+    cropDialogOpen.value = false
+    if (cropSourceObjectUrl) {
+      URL.revokeObjectURL(cropSourceObjectUrl)
+      cropSourceObjectUrl = null
+    }
+    cropSourceUrl.value = null
+  }
+
+  function resetImageState (initialUrl: string | null = null) {
+    if (imageObjectUrl) {
+      URL.revokeObjectURL(imageObjectUrl)
+      imageObjectUrl = null
+    }
+    imageFile.value = null
+    imagePreviewUrl.value = initialUrl
+    closeCropDialog()
+  }
+
+  // Picking/dropping a file only stages the raw file – the actual image
+  // comes from the crop dialog once the user confirms a selection
+  function handleImageFile (file: File | null) {
+    if (!file) return
+
+    if (cropSourceObjectUrl) {
+      URL.revokeObjectURL(cropSourceObjectUrl)
+    }
+    cropSourceObjectUrl = URL.createObjectURL(file)
+    cropSourceUrl.value = cropSourceObjectUrl
+    cropDialogOpen.value = true
+  }
+
+  function triggerFilePicker () {
+    fileInputRef.value?.click()
+  }
+
+  function onFileInputChange (event: Event) {
+    const input = event.target as HTMLInputElement
+    handleImageFile(input.files?.[0] ?? null)
+    input.value = ''
+  }
+
+  function onImageDrop (event: DragEvent) {
+    isImageDragOver.value = false
+    handleImageFile(event.dataTransfer?.files?.[0] ?? null)
+  }
+
+  function cancelCrop () {
+    closeCropDialog()
+  }
+
+  async function applyCrop () {
+    const result = cropperRef.value?.getResult()
+    if (!result?.canvas) return
+
+    const outputCanvas = document.createElement('canvas')
+    outputCanvas.width = CROP_OUTPUT_SIZE
+    outputCanvas.height = CROP_OUTPUT_SIZE
+    const context = outputCanvas.getContext('2d')
+    if (!context) return
+    context.drawImage(result.canvas, 0, 0, CROP_OUTPUT_SIZE, CROP_OUTPUT_SIZE)
+
+    const blob = await new Promise<Blob | null>(resolve =>
+      outputCanvas.toBlob(resolve, 'image/jpeg', 0.9),
+    )
+    if (!blob) {
+      toast.show('Unable to process the cropped image.', 'error')
+      return
+    }
+
+    if (imageObjectUrl) {
+      URL.revokeObjectURL(imageObjectUrl)
+    }
+    imageFile.value = new File([blob], 'product-image.jpg', { type: 'image/jpeg' })
+    imageObjectUrl = URL.createObjectURL(blob)
+    imagePreviewUrl.value = imageObjectUrl
+
+    closeCropDialog()
   }
 
   function closeDialog () {
     dialogOpen.value = false
+    resetImageState()
   }
 
   function openCreateDialog () {
     dialogMode.value = 'create'
     Object.assign(form, emptyForm())
+    resetImageState()
     dialogOpen.value = true
   }
 
@@ -509,6 +679,7 @@
       stocks,
       image: product.image,
     })
+    resetImageState(product.image || null)
     dialogOpen.value = true
   }
 
@@ -532,40 +703,40 @@
       : Number(form.batchPrice)
 
     if (!form.name.trim()) {
-      showMessage('Product name is required.', 'warning')
+      toast.show('Product name is required.', 'warning')
       return null
     }
     if (!form.code.trim()) {
-      showMessage('Product code is required.', 'warning')
+      toast.show('Product code is required.', 'warning')
       return null
     }
     if (!form.barcode.trim()) {
-      showMessage('Barcode is required.', 'warning')
+      toast.show('Barcode is required.', 'warning')
       return null
     }
     if (!Number.isInteger(categoryId) || categoryId <= 0) {
-      showMessage('Category is required.', 'warning')
+      toast.show('Category is required.', 'warning')
       return null
     }
     if (!Number.isFinite(price) || price < 0) {
-      showMessage('Price must be zero or higher.', 'warning')
+      toast.show('Price must be zero or higher.', 'warning')
       return null
     }
     if (!form.sellableRetail && !form.sellableWholesale) {
-      showMessage('Enable at least one of Sell in Retail Shop or Sell in Wholesale.', 'warning')
+      toast.show('Enable at least one of Sell in Retail Shop or Sell in Wholesale.', 'warning')
       return null
     }
     if (form.sellableWholesale) {
       if (!batchUnit) {
-        showMessage('Wholesale batch unit is required when sold wholesale.', 'warning')
+        toast.show('Wholesale batch unit is required when sold wholesale.', 'warning')
         return null
       }
       if (batchSize === null || !Number.isInteger(batchSize) || batchSize < 1) {
-        showMessage('Units per batch must be a whole number of at least 1.', 'warning')
+        toast.show('Units per batch must be a whole number of at least 1.', 'warning')
         return null
       }
       if (batchPrice === null || !Number.isFinite(batchPrice) || batchPrice < 0) {
-        showMessage('Batch price must be zero or higher.', 'warning')
+        toast.show('Batch price must be zero or higher.', 'warning')
         return null
       }
     }
@@ -574,7 +745,7 @@
     for (const branch of branchStore.branches) {
       const stock = Number(form.stocks[branch.id] ?? 0)
       if (!Number.isInteger(stock) || stock < 0) {
-        showMessage(
+        toast.show(
           `${branch.name} stock must be a non-negative whole number.`,
           'warning',
         )
@@ -584,7 +755,7 @@
     }
 
     if (!form.image.trim()) {
-      showMessage('Product image is required.', 'warning')
+      toast.show('Product image is required.', 'warning')
       return null
     }
 
@@ -628,11 +799,27 @@
   }
 
   async function saveDialogProduct () {
-    const built = buildPayload()
-    if (!built) return
-    const { payload, stocks } = built
-
     saving.value = true
+
+    if (imageFile.value) {
+      try {
+        form.image = await uploadProductImage(imageFile.value)
+      } catch (error) {
+        saving.value = false
+        toast.show(
+          error instanceof Error ? error.message : 'Unable to upload image.',
+          'error',
+        )
+        return
+      }
+    }
+
+    const built = buildPayload()
+    if (!built) {
+      saving.value = false
+      return
+    }
+    const { payload, stocks } = built
 
     try {
       const categoryName
@@ -647,7 +834,7 @@
           ...products.value,
           { ...createdProduct, categoryName, stock: 0, stockByBranch },
         ]
-        showMessage(`${createdProduct.name} created.`)
+        toast.show(`${createdProduct.name} created.`)
       } else if (form.id) {
         const updatedProduct = await updateProductInventory(
           { id: form.id, ...payload },
@@ -664,12 +851,12 @@
             stockByBranch,
           }
         }
-        showMessage(`${updatedProduct.name} updated.`)
+        toast.show(`${updatedProduct.name} updated.`)
       }
 
       closeDialog()
     } catch (error) {
-      showMessage(
+      toast.show(
         error instanceof Error ? error.message : 'Unable to save product.',
         'error',
       )
@@ -693,14 +880,92 @@
     gap: 0.5rem;
   }
 }
-.custom-switch {
-  --v-switch-track-color: red !important;
-  --v-switch-track-color-active: var(--v-theme-primary) !important;
+.price-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.required-asterisk {
+  color: rgb(var(--v-theme-error));
 }
 .receipt-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
+}
+.form-section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  padding-bottom: 0;
+  padding-top: 20px;
+}
+.form-section-label:first-child {
+  padding-top: 4px;
+}
+.cropper-wrap {
+  height: 360px;
+  background: rgba(var(--v-theme-on-surface), 0.04);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.cropper {
+  height: 100%;
+  width: 100%;
+}
+.image-dropzone {
+  position: relative;
+  display: flex;
+  width: 100%;
+  max-width: 280px;
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 2px dashed rgba(var(--v-theme-on-surface), 0.24);
+  background: rgba(var(--v-theme-on-surface), 0.03);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.image-dropzone:hover,
+.image-dropzone:focus-visible {
+  border-color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.05);
+  outline: none;
+}
+.image-dropzone.is-dragover {
+  border-color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+.image-dropzone.has-image {
+  border-style: solid;
+  border-color: rgba(var(--v-theme-on-surface), 0.12);
+}
+.image-dropzone-preview {
+  position: absolute;
+  inset: 0;
+}
+.image-dropzone-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: white;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.image-dropzone.has-image:hover .image-dropzone-overlay,
+.image-dropzone.has-image:focus-visible .image-dropzone-overlay {
+  opacity: 1;
 }
 </style>

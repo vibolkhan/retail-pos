@@ -125,6 +125,24 @@ async function saveBranchStock (productId: number, stocks: BranchStockInput[]) {
   handleError(error)
 }
 
+// Storage bucket that holds product photos (must exist as a public bucket
+// in the Supabase project)
+const PRODUCT_IMAGE_BUCKET = 'product-images'
+
+// Uploads a product photo and returns its public URL
+export async function uploadProductImage (file: File): Promise<string> {
+  const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+  const path = `${crypto.randomUUID()}.${extension}`
+
+  const { error } = await supabase.storage
+    .from(PRODUCT_IMAGE_BUCKET)
+    .upload(path, file, { cacheControl: '3600', upsert: false })
+  handleError(error)
+
+  const { data } = supabase.storage.from(PRODUCT_IMAGE_BUCKET).getPublicUrl(path)
+  return data.publicUrl
+}
+
 // Create/Update product inventory payload (excluding id and categoryName)
 export async function createProductInventory (
   payload: ProductInventoryPayload,
@@ -163,7 +181,10 @@ export async function updateProductInventory (
 
 // Sales
 export async function getSales (): Promise<Sale[]> {
-  const { data, error } = await supabase.from('sales').select()
+  const { data, error } = await supabase
+    .from('sales')
+    .select()
+    .order('date', { ascending: false })
   handleError(error)
   return (data ?? []) as Sale[]
 }

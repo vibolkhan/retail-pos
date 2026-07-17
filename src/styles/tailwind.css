@@ -3,9 +3,9 @@
 @import "tailwindcss/utilities" layer(tailwind-utilities);
 
 @theme {
-  --font-heading: "Roboto", sans-serif;
-  --font-body: "Roboto", sans-serif;
-  --font-mono: "Roboto Mono", monospace;
+  --font-heading: "Oswald", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans", -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
   --color-background: rgb(var(--v-theme-background));
   --color-surface: rgb(var(--v-theme-surface));
@@ -16,6 +16,7 @@
   --color-info: rgb(var(--v-theme-info));
   --color-warning: rgb(var(--v-theme-warning));
   --color-error: rgb(var(--v-theme-error));
+  --color-wholesale: rgb(var(--v-theme-wholesale));
 
   --breakpoint-*: initial;
   --breakpoint-xs: 0px;

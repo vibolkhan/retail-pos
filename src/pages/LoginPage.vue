@@ -4,7 +4,7 @@
       <v-col class="login-brand" cols="12" md="6">
         <div class="login-brand-inner">
           <v-avatar class="login-brand-avatar" color="on-primary" rounded="lg" size="64" variant="tonal">
-            <v-icon icon="mdi-store" size="34" />
+            <v-icon icon="mdi-receipt-text-outline" size="34" />
           </v-avatar>
 
           <h1 class="text-h4 font-weight-bold login-brand-title">Retail POS</h1>
@@ -31,11 +31,11 @@
       </v-col>
 
       <v-col class="login-form-col" cols="12" md="6">
-        <v-card class="login-card" max-width="420" rounded="xl" variant="flat" width="100%">
+        <v-card class="login-card" max-width="420" rounded="lg" variant="flat" width="100%">
           <v-card-text class="login-card-text">
             <div class="login-form-header">
               <v-avatar class="login-mobile-avatar" color="primary" rounded="lg" size="52" variant="tonal">
-                <v-icon icon="mdi-store" size="28" />
+                <v-icon icon="mdi-receipt-text-outline" size="28" />
               </v-avatar>
 
               <h2 class="text-h5 font-weight-bold">Welcome back</h2>
@@ -94,45 +94,32 @@
       </v-col>
     </v-row>
 
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
-      {{ snackbar.message }}
-    </v-snackbar>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { reactive, ref } from "vue";
+import { ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useToast } from "@/composables/useToast";
 import { useAuthStore } from "@/stores/auth";
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+const toast = useToast();
 
 const email = ref("");
 const password = ref("");
 const submitting = ref(false);
 const showPassword = ref(false);
 
-const snackbar = reactive({
-  show: false,
-  message: "",
-  color: "error",
-});
-
-function showMessage(message: string, color = "error") {
-  snackbar.message = message;
-  snackbar.color = color;
-  snackbar.show = true;
-}
-
 async function handleSubmit() {
   if (!email.value.trim()) {
-    showMessage("Email is required.");
+    toast.show("Email is required.", "error");
     return;
   }
   if (!password.value) {
-    showMessage("Password is required.");
+    toast.show("Password is required.", "error");
     return;
   }
 
@@ -144,7 +131,7 @@ async function handleSubmit() {
     const redirect = typeof route.query.redirect === "string" ? route.query.redirect : null;
     router.replace(redirect || (authStore.isAdmin ? "/" : "/pos"));
   } catch {
-    showMessage("Invalid email or password.");
+    toast.show("Invalid email or password.", "error");
   } finally {
     submitting.value = false;
   }

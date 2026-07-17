@@ -24,6 +24,8 @@
         <v-btn icon="mdi-close" size="small" variant="text" @click="dialogModel = false" />
       </div>
 
+      <v-divider class="mt-3" />
+
       <v-card-text class="qty-dialog-body">
         <div class="qty-price-row">
           <span class="text-medium-emphasis text-body-2">Price per {{ product.batchUnit ?? 'batch' }}</span>

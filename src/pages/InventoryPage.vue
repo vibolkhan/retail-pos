@@ -153,7 +153,7 @@
       </template>
     </v-data-table>
 
-    <v-dialog v-model="dialogOpen" max-width="760">
+    <v-dialog v-model="dialogOpen" max-width="840">
       <v-card>
         <v-form @submit.prevent="saveDialogProduct">
           <v-card-title class="receipt-title">
@@ -164,206 +164,247 @@
 
           <v-divider />
 
-          <v-card-text>
-            <v-row>
-              <v-col class="form-section-label" cols="12">
-                Product photo
-              </v-col>
+          <v-card-text class="form-dialog-body">
+            <section class="form-section">
+              <div class="form-section-header">
+                <v-icon icon="mdi-information-outline" size="18" />
+                <span>Product details</span>
+              </div>
 
-              <v-col cols="12">
-                <div
-                  class="image-dropzone"
-                  :class="{ 'has-image': imagePreviewUrl, 'is-dragover': isImageDragOver }"
-                  role="button"
-                  tabindex="0"
-                  @click="triggerFilePicker"
-                  @dragleave.prevent="isImageDragOver = false"
-                  @dragover.prevent="isImageDragOver = true"
-                  @drop.prevent="onImageDrop"
-                  @keydown.enter="triggerFilePicker"
-                >
-                  <input
-                    ref="fileInputRef"
-                    accept="image/*"
-                    class="hidden"
-                    type="file"
-                    @change="onFileInputChange"
+              <v-row>
+                <v-col class="d-flex justify-center" cols="12" md="4">
+                  <div
+                    class="image-dropzone"
+                    :class="{ 'has-image': imagePreviewUrl, 'is-dragover': isImageDragOver }"
+                    role="button"
+                    tabindex="0"
+                    @click="triggerFilePicker"
+                    @dragleave.prevent="isImageDragOver = false"
+                    @dragover.prevent="isImageDragOver = true"
+                    @drop.prevent="onImageDrop"
+                    @keydown.enter="triggerFilePicker"
                   >
+                    <input
+                      ref="fileInputRef"
+                      accept="image/*"
+                      class="hidden"
+                      type="file"
+                      @change="onFileInputChange"
+                    >
 
-                  <template v-if="imagePreviewUrl">
-                    <v-img class="image-dropzone-preview" cover :src="imagePreviewUrl" />
+                    <template v-if="imagePreviewUrl">
+                      <v-img class="image-dropzone-preview" cover :src="imagePreviewUrl" />
 
-                    <div class="image-dropzone-overlay">
-                      <v-icon icon="mdi-image-edit-outline" size="28" />
-                      <span class="text-body-2 font-weight-medium">Change photo</span>
+                      <div class="image-dropzone-overlay">
+                        <v-icon icon="mdi-image-edit-outline" size="24" />
+                        <span class="text-caption font-weight-medium">Change photo</span>
+                      </div>
+                    </template>
+
+                    <template v-else>
+                      <v-icon class="opacity-50" icon="mdi-tray-arrow-up" size="32" />
+
+                      <div class="text-caption font-weight-medium mt-2">
+                        Drag &amp; drop, or click to browse
+                      </div>
+
+                      <div class="text-caption text-medium-emphasis mt-1 px-2">
+                        PNG or JPG, cropped to a square
+                      </div>
+                    </template>
+                  </div>
+                </v-col>
+
+                <v-col cols="12" md="8">
+                  <v-row>
+                    <v-col cols="12">
+                      <v-text-field
+                        v-model="form.name"
+                        density="comfortable"
+                        label="Product name"
+                        variant="outlined"
+                      />
+                    </v-col>
+
+                    <v-col cols="6">
+                      <v-text-field
+                        v-model="form.code"
+                        density="comfortable"
+                        label="Code"
+                        variant="outlined"
+                      />
+                    </v-col>
+
+                    <v-col cols="6">
+                      <v-text-field
+                        v-model="form.barcode"
+                        density="comfortable"
+                        label="Barcode"
+                        variant="outlined"
+                      />
+                    </v-col>
+
+                    <v-col cols="12">
+                      <v-select
+                        v-model="form.categoryId"
+                        density="comfortable"
+                        item-title="name"
+                        item-value="id"
+                        :items="categories"
+                        label="Category"
+                        variant="outlined"
+                      />
+                    </v-col>
+                  </v-row>
+                </v-col>
+              </v-row>
+            </section>
+
+            <v-divider class="form-section-divider" />
+
+            <section class="form-section">
+              <div class="form-section-header">
+                <v-icon icon="mdi-storefront-outline" size="18" />
+                <span>Sales channels</span>
+              </div>
+
+              <v-row>
+                <v-col cols="12" md="6">
+                  <label class="channel-toggle" :class="{ 'is-active': form.sellableRetail }">
+                    <div>
+                      <div class="font-weight-medium">Retail shop</div>
+
+                      <div class="text-caption text-medium-emphasis">
+                        Sold by the unit to walk-in customers
+                      </div>
                     </div>
-                  </template>
 
-                  <template v-else>
-                    <v-icon class="opacity-50" icon="mdi-tray-arrow-up" size="40" />
+                    <v-switch
+                      v-model="form.sellableRetail"
+                      color="primary"
+                      hide-details
+                      inset
+                    />
+                  </label>
+                </v-col>
 
-                    <div class="text-body-2 font-weight-medium mt-2">
-                      Drag &amp; drop an image, or click to browse
+                <v-col cols="12" md="6">
+                  <label class="channel-toggle" :class="{ 'is-active': form.sellableWholesale }">
+                    <div>
+                      <div class="font-weight-medium">Wholesale</div>
+
+                      <div class="text-caption text-medium-emphasis">
+                        Sold by the batch to bulk buyers
+                      </div>
                     </div>
 
-                    <div class="text-caption text-medium-emphasis mt-1">
-                      PNG or JPG. You'll be able to crop it to a square before saving.
-                    </div>
-                  </template>
-                </div>
-              </v-col>
+                    <v-switch
+                      v-model="form.sellableWholesale"
+                      color="wholesale"
+                      hide-details
+                      inset
+                    />
+                  </label>
+                </v-col>
+              </v-row>
+            </section>
 
-              <v-col class="form-section-label" cols="12">
-                Basic info
-              </v-col>
+            <v-divider class="form-section-divider" />
 
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="form.name"
-                  density="comfortable"
-                  label="Product name"
-                  variant="outlined"
-                />
-              </v-col>
+            <section class="form-section">
+              <div class="form-section-header">
+                <v-icon icon="mdi-currency-usd" size="18" />
+                <span>Pricing</span>
+              </div>
 
-              <v-col cols="12" md="3">
-                <v-text-field
-                  v-model="form.code"
-                  density="comfortable"
-                  label="Code"
-                  variant="outlined"
-                />
-              </v-col>
+              <v-row>
+                <v-col cols="12" :md="form.sellableWholesale ? 4 : 6">
+                  <v-text-field
+                    v-model.number="form.price"
+                    density="comfortable"
+                    label="Unit price"
+                    min="0"
+                    prefix="$"
+                    type="number"
+                    variant="outlined"
+                  />
+                </v-col>
+              </v-row>
 
-              <v-col cols="12" md="3">
-                <v-text-field
-                  v-model="form.barcode"
-                  density="comfortable"
-                  label="Barcode"
-                  variant="outlined"
-                />
-              </v-col>
+              <v-expand-transition>
+                <v-row v-if="form.sellableWholesale">
+                  <v-col cols="12" md="4">
+                    <v-combobox
+                      v-model="form.batchUnit"
+                      density="comfortable"
+                      :items="batchUnitPresets"
+                      variant="outlined"
+                    >
+                      <template #label>
+                        Wholesale batch unit <span class="required-asterisk">*</span>
+                      </template>
+                    </v-combobox>
+                  </v-col>
 
-              <v-col cols="12" md="4">
-                <v-select
-                  v-model="form.categoryId"
-                  density="comfortable"
-                  item-title="name"
-                  item-value="id"
-                  :items="categories"
-                  label="Category"
-                  variant="outlined"
-                />
-              </v-col>
+                  <v-col cols="12" md="4">
+                    <v-text-field
+                      v-model.number="form.batchSize"
+                      density="comfortable"
+                      min="1"
+                      type="number"
+                      variant="outlined"
+                    >
+                      <template #label>
+                        Units per batch <span class="required-asterisk">*</span>
+                      </template>
+                    </v-text-field>
+                  </v-col>
 
-              <v-col class="form-section-label" cols="12">
-                Pricing &amp; wholesale
-              </v-col>
+                  <v-col cols="12" md="4">
+                    <v-text-field
+                      v-model.number="form.batchPrice"
+                      density="comfortable"
+                      min="0"
+                      prefix="$"
+                      type="number"
+                      variant="outlined"
+                    >
+                      <template #label>
+                        Batch price <span class="required-asterisk">*</span>
+                      </template>
+                    </v-text-field>
+                  </v-col>
+                </v-row>
+              </v-expand-transition>
+            </section>
 
-              <v-col cols="12" md="4">
-                <v-text-field
-                  v-model.number="form.price"
-                  density="comfortable"
-                  label="Unit price"
-                  min="0"
-                  prefix="$"
-                  type="number"
-                  variant="outlined"
-                />
-              </v-col>
+            <v-divider class="form-section-divider" />
 
-              <v-col cols="12" md="4">
-                <v-combobox
-                  v-model="form.batchUnit"
-                  density="comfortable"
-                  :disabled="!form.sellableWholesale"
-                  :items="batchUnitPresets"
-                  variant="outlined"
+            <section class="form-section">
+              <div class="form-section-header">
+                <v-icon icon="mdi-warehouse" size="18" />
+                <span>Stock by branch</span>
+              </div>
+
+              <v-row>
+                <v-col
+                  v-for="branch in visibleStockBranches"
+                  :key="branch.id"
+                  cols="12"
+                  md="4"
                 >
-                  <template #label>
-                    Wholesale batch unit
-                    <span v-if="form.sellableWholesale" class="required-asterisk">*</span>
-                  </template>
-                </v-combobox>
-              </v-col>
-
-              <v-col cols="12" md="4">
-                <v-text-field
-                  v-model.number="form.batchSize"
-                  density="comfortable"
-                  :disabled="!form.sellableWholesale"
-                  min="1"
-                  type="number"
-                  variant="outlined"
-                >
-                  <template #label>
-                    Units per batch
-                    <span v-if="form.sellableWholesale" class="required-asterisk">*</span>
-                  </template>
-                </v-text-field>
-              </v-col>
-
-              <v-col cols="12" md="4">
-                <v-text-field
-                  v-model.number="form.batchPrice"
-                  density="comfortable"
-                  :disabled="!form.sellableWholesale"
-                  min="0"
-                  prefix="$"
-                  type="number"
-                  variant="outlined"
-                >
-                  <template #label>
-                    Batch price
-                    <span v-if="form.sellableWholesale" class="required-asterisk">*</span>
-                  </template>
-                </v-text-field>
-              </v-col>
-
-              <v-col class="form-section-label" cols="12">
-                Stock by branch
-              </v-col>
-
-              <v-col
-                v-for="branch in branchStore.branches"
-                :key="branch.id"
-                cols="12"
-                md="4"
-              >
-                <v-text-field
-                  v-model.number="form.stocks[branch.id]"
-                  density="comfortable"
-                  :label="`${branch.name} stock${branch.type === 'wholesale' ? ` (${form.batchUnit || 'batch'})` : ' (units)'}`"
-                  min="0"
-                  type="number"
-                  variant="outlined"
-                />
-              </v-col>
-
-              <v-col class="form-section-label" cols="12">
-                Channels
-              </v-col>
-
-              <v-col cols="12" md="6">
-                <v-switch
-                  v-model="form.sellableRetail"
-                  color="primary"
-                  hide-details
-                  inset
-                  label="Sell in Retail Shop"
-                />
-              </v-col>
-
-              <v-col cols="12" md="6">
-                <v-switch
-                  v-model="form.sellableWholesale"
-                  color="wholesale"
-                  hide-details
-                  inset
-                  label="Sell in Wholesale"
-                />
-              </v-col>
-            </v-row>
+                  <v-text-field
+                    v-model.number="form.stocks[branch.id]"
+                    density="comfortable"
+                    :label="`${branch.name} stock${branch.type === 'wholesale' ? ` (${form.batchUnit || 'batch'})` : ' (units)'}`"
+                    min="0"
+                    :prepend-inner-icon="branch.type === 'wholesale' ? 'mdi-warehouse' : 'mdi-store-outline'"
+                    type="number"
+                    variant="outlined"
+                  />
+                </v-col>
+              </v-row>
+            </section>
           </v-card-text>
 
           <v-card-actions class="px-6 pb-5">
@@ -510,6 +551,12 @@
 
   const dialogTitle = computed(() =>
     dialogMode.value === 'create' ? 'Create product' : 'Edit product',
+  )
+
+  const visibleStockBranches = computed(() =>
+    branchStore.branches.filter(branch =>
+      branch.type === 'wholesale' ? form.sellableWholesale : form.sellableRetail,
+    ),
   )
 
   const filteredProducts = computed(() => {
@@ -893,17 +940,41 @@
   justify-content: space-between;
   width: 100%;
 }
-.form-section-label {
+.form-dialog-body {
+  padding-top: 20px;
+}
+.form-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: rgba(var(--v-theme-on-surface), 0.5);
-  padding-bottom: 0;
-  padding-top: 20px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
-.form-section-label:first-child {
-  padding-top: 4px;
+.form-section-divider {
+  margin-block: 8px 24px;
+}
+.channel-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(var(--v-theme-on-surface), 0.12);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.channel-toggle:hover {
+  border-color: rgba(var(--v-theme-primary), 0.4);
+}
+.channel-toggle.is-active {
+  border-color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.06);
 }
 .cropper-wrap {
   height: 360px;
@@ -919,7 +990,7 @@
   position: relative;
   display: flex;
   width: 100%;
-  max-width: 280px;
+  max-width: 220px;
   aspect-ratio: 1 / 1;
   margin-inline: auto;
   flex-direction: column;

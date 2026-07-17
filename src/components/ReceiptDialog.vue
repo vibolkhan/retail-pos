@@ -2,8 +2,7 @@
   <v-dialog v-model="dialogModel" max-width="560" persistent>
     <v-card v-if="sale" rounded="lg">
       <v-card-title class="receipt-title">
-        <span>Payment Receipt</span>
-        <v-btn icon="mdi-close" variant="text" @click="closeDialog" />
+        <span class="flex-grow-1">Payment Receipt</span>
       </v-card-title>
 
       <v-divider />
@@ -73,7 +72,7 @@
         </v-chip>
       </v-card-text>
 
-      <v-card-actions>
+      <v-card-actions class="px-6 pb-5">
         <v-spacer />
 
         <v-btn color="primary" variant="flat" @click="closeDialog">

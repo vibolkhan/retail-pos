@@ -179,6 +179,26 @@ export async function updateProductInventory (
   return data as Product
 }
 
+export async function deleteProductInventory (id: number): Promise<void> {
+  const { error: stockError } = await supabase
+    .from('branch_stock')
+    .delete()
+    .eq('productId', id)
+  handleError(stockError)
+
+  const { data, error } = await supabase
+    .from('products')
+    .delete()
+    .eq('id', id)
+    .select()
+  handleError(error)
+  if (!data || data.length === 0) {
+    throw new Error(
+      'Product was not deleted — no matching row was removed (check delete permissions/RLS policy on "products").',
+    )
+  }
+}
+
 // Sales
 export async function getSales (): Promise<Sale[]> {
   const { data, error } = await supabase

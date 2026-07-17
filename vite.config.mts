@@ -110,6 +110,7 @@ export default defineConfig({
       'chart.js',
       'jspdf',
       'jspdf-autotable',
+      'exceljs',
     ],
   },
 })

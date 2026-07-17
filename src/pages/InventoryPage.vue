@@ -1,6 +1,32 @@
 <template>
   <v-container class="py-6" fluid>
-    <div class="d-flex justify-end mb-4">
+    <div class="d-flex justify-end ga-2 mb-4">
+      <input
+        ref="importFileInputRef"
+        accept=".xlsx"
+        class="hidden"
+        type="file"
+        @change="onImportFileChange"
+      >
+
+      <v-btn
+        :loading="importing"
+        prepend-icon="mdi-file-upload-outline"
+        variant="outlined"
+        @click="triggerImportPicker"
+      >
+        Import Excel
+      </v-btn>
+
+      <v-btn
+        :loading="exporting"
+        prepend-icon="mdi-file-download-outline"
+        variant="outlined"
+        @click="onExportClick"
+      >
+        Export Excel
+      </v-btn>
+
       <v-btn
         color="primary"
         prepend-icon="mdi-plus"
@@ -141,6 +167,20 @@
               size="small"
               variant="text"
               @click="openEditDialog(item)"
+            />
+          </template>
+        </v-tooltip>
+
+        <v-tooltip text="Delete product">
+          <template #activator="{ props }">
+            <v-btn
+              v-bind="props"
+              aria-label="Delete product"
+              color="error"
+              icon="mdi-delete-outline"
+              size="small"
+              variant="text"
+              @click="openDeleteDialog(item)"
             />
           </template>
         </v-tooltip>
@@ -463,10 +503,80 @@
       </v-card>
     </v-dialog>
 
+    <v-dialog v-model="deleteDialogOpen" max-width="420">
+      <v-card>
+        <v-card-title class="receipt-title">
+          <span class="flex-grow-1">Delete product</span>
+        </v-card-title>
+
+        <v-divider />
+
+        <v-card-text>
+          Are you sure you want to delete
+          <strong>{{ productToDelete?.name }}</strong>? This will also remove
+          its stock records for every branch. This action cannot be undone.
+        </v-card-text>
+
+        <v-card-actions class="px-6 pb-5">
+          <v-spacer />
+
+          <v-btn variant="text" @click="closeDeleteDialog"> Cancel </v-btn>
+
+          <v-btn
+            color="error"
+            :loading="deleting"
+            variant="flat"
+            @click="confirmDeleteProduct"
+          >
+            Delete
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="importResultDialogOpen" max-width="480">
+      <v-card>
+        <v-card-title class="receipt-title">
+          <span class="flex-grow-1">Import results</span>
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" @click="importResultDialogOpen = false" />
+        </v-card-title>
+
+        <v-divider />
+
+        <v-card-text>
+          <div class="mb-3">
+            {{ importSummary?.created ?? 0 }} created, {{ importSummary?.updated ?? 0 }} updated.
+          </div>
+
+          <template v-if="importSummary?.errors.length">
+            <div class="text-error font-weight-medium mb-2">
+              {{ importSummary.errors.length }} row(s) skipped:
+            </div>
+
+            <ul class="import-error-list">
+              <li v-for="err in importSummary.errors" :key="err.row">
+                Row {{ err.row }}: {{ err.message }}
+              </li>
+            </ul>
+          </template>
+        </v-card-text>
+
+        <v-card-actions class="px-6 pb-5">
+          <v-spacer />
+
+          <v-btn color="primary" variant="flat" @click="importResultDialogOpen = false">
+            Close
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
   </v-container>
 </template>
 
 <script lang="ts" setup>
+  import type { ImportSummary } from '@/composables/useInventoryExcel'
   import type {
     BranchStockInput,
     InventoryProduct,
@@ -476,7 +586,12 @@
   import { computed, onMounted, reactive, ref } from 'vue'
   import { Cropper } from 'vue-advanced-cropper'
   import {
+    exportInventoryToExcel,
+    importInventoryFromExcel,
+  } from '@/composables/useInventoryExcel'
+  import {
     createProductInventory,
+    deleteProductInventory,
     getCategories,
     getInventoryProducts,
     updateProductInventory,
@@ -520,6 +635,14 @@
   const dialogOpen = ref(false)
   const dialogMode = ref<DialogMode>('create')
   const form = reactive<ProductForm>(emptyForm())
+  const deleteDialogOpen = ref(false)
+  const productToDelete = ref<InventoryProduct | null>(null)
+  const deleting = ref(false)
+  const exporting = ref(false)
+  const importing = ref(false)
+  const importFileInputRef = ref<HTMLInputElement | null>(null)
+  const importResultDialogOpen = ref(false)
+  const importSummary = ref<ImportSummary | null>(null)
   const imageFile = ref<File | null>(null)
   const imagePreviewUrl = ref<string | null>(null)
   const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -728,6 +851,89 @@
     })
     resetImageState(product.image || null)
     dialogOpen.value = true
+  }
+
+  function openDeleteDialog (product: InventoryProduct) {
+    productToDelete.value = product
+    deleteDialogOpen.value = true
+  }
+
+  function closeDeleteDialog () {
+    deleteDialogOpen.value = false
+    productToDelete.value = null
+  }
+
+  async function confirmDeleteProduct () {
+    if (!productToDelete.value) return
+
+    deleting.value = true
+
+    try {
+      await deleteProductInventory(productToDelete.value.id)
+      products.value = products.value.filter(
+        item => item.id !== productToDelete.value?.id,
+      )
+      toast.show(`${productToDelete.value.name} deleted.`)
+      closeDeleteDialog()
+    } catch (error) {
+      toast.show(
+        error instanceof Error ? error.message : 'Unable to delete product.',
+        'error',
+      )
+    } finally {
+      deleting.value = false
+    }
+  }
+
+  async function onExportClick () {
+    exporting.value = true
+    try {
+      await exportInventoryToExcel(products.value, branchStore.branches)
+    } catch (error) {
+      toast.show(
+        error instanceof Error ? error.message : 'Unable to export inventory.',
+        'error',
+      )
+    } finally {
+      exporting.value = false
+    }
+  }
+
+  function triggerImportPicker () {
+    importFileInputRef.value?.click()
+  }
+
+  async function onImportFileChange (event: Event) {
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0] ?? null
+    input.value = ''
+    if (!file) return
+
+    importing.value = true
+
+    try {
+      const summary = await importInventoryFromExcel(file, {
+        categories: categories.value,
+        branches: branchStore.branches,
+        existingProducts: products.value,
+      })
+      await loadProducts()
+      importSummary.value = summary
+      importResultDialogOpen.value = true
+
+      if (summary.errors.length === 0) {
+        toast.show(`Import complete: ${summary.created} created, ${summary.updated} updated.`)
+      } else {
+        toast.show(`Import finished with ${summary.errors.length} row error(s).`, 'warning')
+      }
+    } catch (error) {
+      toast.show(
+        error instanceof Error ? error.message : 'Unable to import inventory.',
+        'error',
+      )
+    } finally {
+      importing.value = false
+    }
   }
 
   interface PayloadWithStocks {
@@ -1038,5 +1244,12 @@
 .image-dropzone.has-image:hover .image-dropzone-overlay,
 .image-dropzone.has-image:focus-visible .image-dropzone-overlay {
   opacity: 1;
+}
+.import-error-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding-left: 20px;
+  font-size: 0.85rem;
+  color: rgba(var(--v-theme-on-surface), 0.8);
 }
 </style>

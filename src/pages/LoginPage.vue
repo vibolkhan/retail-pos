@@ -129,7 +129,7 @@ async function handleSubmit() {
     await authStore.login(email.value.trim(), password.value);
 
     const redirect = typeof route.query.redirect === "string" ? route.query.redirect : null;
-    router.replace(redirect || (authStore.isAdmin ? "/" : "/pos"));
+    router.replace(redirect || (authStore.isSalesperson ? "/pos" : "/"));
   } catch {
     toast.show("Invalid email or password.", "error");
   } finally {

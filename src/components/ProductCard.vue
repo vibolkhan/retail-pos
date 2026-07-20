@@ -67,6 +67,10 @@
         <div class="flex flex-col">
           <strong class="price-mono text-primary">{{ formatCurrency(displayPrice) }}</strong>
 
+          <span v-if="secondaryPrice" class="text-xs text-medium-emphasis price-mono">
+            ≈ {{ secondaryPrice }}
+          </span>
+
           <span v-if="wholesale" class="text-xs text-medium-emphasis">
             / {{ product.batchUnit ?? 'batch' }} of {{ product.batchSize }}
           </span>
@@ -87,7 +91,8 @@
 <script lang="ts" setup>
   import type { Product } from '@/types/pos'
   import { computed } from 'vue'
-  import { formatCurrency } from '@/utils/currency'
+  import { useSettings } from '@/composables/useSettings'
+  import { formatCurrency, formatSecondaryCurrency } from '@/utils/currency'
 
   const props = withDefaults(
     defineProps<{
@@ -102,8 +107,18 @@
     add: [product: Product]
   }>()
 
+  const { state: settingsState } = useSettings()
+
   const displayPrice = computed(() =>
     props.wholesale ? props.product.batchPrice ?? 0 : props.product.price,
+  )
+
+  const secondaryPrice = computed(() =>
+    formatSecondaryCurrency(
+      displayPrice.value,
+      settingsState.currency.secondary,
+      settingsState.currency.exchangeRate,
+    ),
   )
 </script>
 

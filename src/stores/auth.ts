@@ -42,6 +42,7 @@ export const useAuthStore = defineStore("auth", {
     isAuthenticated: (state) => !!state.session,
     role: (state): Role | null => state.profile?.role ?? null,
     isAdmin: (state): boolean => state.profile?.role === "admin",
+    isManager: (state): boolean => state.profile?.role === "manager",
     isSalesperson: (state): boolean => state.profile?.role === "salesperson",
   },
 
@@ -96,13 +97,34 @@ export const useAuthStore = defineStore("auth", {
           const profile = await getProfile(session.user.id);
           // Only commit if no newer session has superseded this call while
           // the fetch was in flight.
-          if (applySessionKey === key) this.profile = profile;
+          if (applySessionKey === key) {
+            this.profile = profile;
+            // Cached so a later offline reopen (profile starts null on a
+            // fresh load) has something to fall back to below, instead of
+            // getting logged out just because getProfile() couldn't reach
+            // the network — see the catch branch.
+            localStorage.setItem(`auth:profile:${profile.id}`, JSON.stringify(profile));
+          }
         } catch {
-          // A transient failure (e.g. a background token-refresh's profile
-          // re-fetch) shouldn't wipe an already-known-good profile for this
-          // same user and force a spurious logout on the next navigation.
-          const staleForThisUser = this.profile?.id !== session.user.id;
-          if (applySessionKey === key && staleForThisUser) this.profile = null;
+          if (applySessionKey !== key) return;
+
+          if (this.profile?.id === session.user.id) {
+            // Already have a good in-memory profile for this exact user
+            // (e.g. a transient background token-refresh fetch failed) —
+            // keep it, don't touch it.
+            return;
+          }
+
+          // No good in-memory profile yet for this user — this is the
+          // first-load-ever case, where state.profile starts null. Fall
+          // back to the last profile this browser saw for this same user
+          // id (namespaced by id, so a different user's session can never
+          // read another user's cached role) instead of nulling it, so an
+          // offline reopen doesn't bounce an already-logged-in user to
+          // /login. Stays null (today's behavior) if this user has no
+          // cached entry.
+          const cached = localStorage.getItem(`auth:profile:${session.user.id}`);
+          this.profile = cached ? (JSON.parse(cached) as AuthProfile) : null;
         }
       })();
 
@@ -116,6 +138,9 @@ export const useAuthStore = defineStore("auth", {
 
     async logout() {
       await authSignOut();
+      if (this.profile) {
+        localStorage.removeItem(`auth:profile:${this.profile.id}`);
+      }
       this.session = null;
       this.profile = null;
     },

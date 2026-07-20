@@ -41,6 +41,17 @@
 
     <Transition name="fade-slide">
       <v-alert
+        v-if="offlineNotice"
+        class="mb-4"
+        type="info"
+        variant="tonal"
+      >
+        {{ offlineNotice }}
+      </v-alert>
+    </Transition>
+
+    <Transition name="fade-slide">
+      <v-alert
         v-if="errorMessage"
         class="mb-4"
         type="error"
@@ -100,6 +111,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import ProductCard from '@/components/ProductCard.vue'
 import QuantityDialog from '@/components/QuantityDialog.vue'
 import { useCart } from '@/composables/useCart'
+import { cachedFetch } from '@/composables/useOfflineCache'
+import { useOnline } from '@/composables/useOnline'
+import { useSalesSyncQueue } from '@/composables/useSalesSyncQueue'
 import { getCategories, getProducts } from '@/composables/useSupabase'
 import { useToast } from '@/composables/useToast'
 import { useBranchStore } from '@/stores/branch'
@@ -107,6 +121,8 @@ import { useBranchStore } from '@/stores/branch'
 const { addToCart, cartItems } = useCart()
 const branchStore = useBranchStore()
 const toast = useToast()
+const { state: onlineState } = useOnline()
+const { flush, pendingCount } = useSalesSyncQueue()
 
 const quantityDialog = ref(false)
 const selectedProduct = ref<Product | null>(null)
@@ -117,6 +133,7 @@ const loading = ref(true)
 const search = ref('')
 const selectedCategory = ref<number | null>(null)
 const errorMessage = ref('')
+const offlineNotice = ref('')
 
 const categoryOptions = computed(() => categories.value)
 
@@ -170,18 +187,26 @@ function handleAddCases(product: Product, quantity: number) {
 async function load() {
   loading.value = true
   errorMessage.value = ''
+  offlineNotice.value = ''
   try {
     await branchStore.loadBranches()
     if (branchStore.activeBranchId == null) {
       throw new Error('No branch available.')
     }
-    const [productData, categoryData] = await Promise.all([
-      getProducts(branchStore.activeBranchId),
-      getCategories(),
+    const branchId = branchStore.activeBranchId
+    const [productResult, categoryResult] = await Promise.all([
+      cachedFetch(`products:${branchId}`, () => getProducts(branchId), onlineState.isOnline),
+      cachedFetch('categories', getCategories, onlineState.isOnline),
     ])
 
-    products.value = productData
-    categories.value = categoryData
+    products.value = productResult.data
+    categories.value = categoryResult.data
+    if (productResult.fromCache || categoryResult.fromCache) {
+      const cachedAt = productResult.cachedAt ?? categoryResult.cachedAt
+      offlineNotice.value = cachedAt
+        ? `Offline — showing catalog as of ${new Date(cachedAt).toLocaleTimeString()}.`
+        : 'Offline — showing the last loaded catalog.'
+    }
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : 'Unable to load products.'
@@ -190,7 +215,13 @@ async function load() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  // Opportunistic: syncs promptly if there's already pending offline sales
+  // and we're actually online, rather than waiting for App.vue's own
+  // interval/online-event triggers.
+  if (onlineState.isOnline && pendingCount.value > 0) void flush()
+})
 
 // Refetch branch-scoped stock when the user switches branch
 watch(

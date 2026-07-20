@@ -4,9 +4,9 @@
  * Manual routes for ./src/pages/*.vue
  */
 
+import type { Role } from '@/types/auth'
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import type { Role } from '@/types/auth'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -21,34 +21,44 @@ const router = createRouter({
     {
       path: '/',
       component: () => import('@/pages/HomePage.vue'),
-      meta: { roles: ['admin'] },
+      meta: { roles: ['admin', 'manager'] },
     },
     { path: '/home', redirect: '/' },
     {
       path: '/pos',
       component: () => import('@/pages/PosPage.vue'),
-      meta: { roles: ['admin', 'salesperson'] },
+      meta: { roles: ['admin', 'manager', 'salesperson'] },
     },
     {
       path: '/cart',
       component: () => import('@/pages/CartPage.vue'),
-      meta: { roles: ['admin', 'salesperson'] },
+      meta: { roles: ['admin', 'manager', 'salesperson'] },
     },
     {
       path: '/inventory',
       component: () => import('@/pages/InventoryPage.vue'),
-      meta: { roles: ['admin'] },
+      meta: { roles: ['admin', 'manager'] },
     },
     { path: '/carts', redirect: '/cart' },
     {
       path: '/sales',
       component: () => import('@/pages/OrderHistory.vue'),
-      meta: { roles: ['admin'] },
+      meta: { roles: ['admin', 'manager'] },
+    },
+    {
+      path: '/customers',
+      component: () => import('@/pages/CustomersPage.vue'),
+      meta: { roles: ['admin', 'manager'] },
     },
     {
       path: '/pnl',
       component: () => import('@/pages/ProfitLossPage.vue'),
-      meta: { roles: ['admin'] },
+      meta: { roles: ['admin', 'manager'] },
+    },
+    {
+      path: '/settings',
+      component: () => import('@/pages/SettingsPage.vue'),
+      meta: { roles: ['admin', 'manager'] },
     },
     {
       path: '/login',
@@ -61,8 +71,8 @@ const router = createRouter({
   ],
 })
 
-function roleHome(isAdmin: boolean) {
-  return isAdmin ? '/' : '/pos'
+function roleHome (role: Role | null) {
+  return role === 'salesperson' ? '/pos' : '/'
 }
 
 router.beforeEach(async to => {
@@ -76,7 +86,7 @@ router.beforeEach(async to => {
 
   if (to.meta.public) {
     if (to.name === 'login' && authStore.isAuthenticated && authStore.role) {
-      return roleHome(authStore.isAdmin)
+      return roleHome(authStore.role)
     }
     return true
   }
@@ -100,7 +110,7 @@ router.beforeEach(async to => {
       message: 'You are not authorized to view that page.',
       color: 'error',
     }
-    return roleHome(authStore.isAdmin)
+    return roleHome(authStore.role)
   }
 
   return true

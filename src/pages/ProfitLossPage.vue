@@ -64,6 +64,7 @@
                 class="date-input"
                 clearable
                 density="comfortable"
+                :disabled="!onlineState.isOnline"
                 hide-details
                 label="Start Date"
                 placeholder="Select start date"
@@ -100,6 +101,7 @@
                 class="date-input"
                 clearable
                 density="comfortable"
+                :disabled="!onlineState.isOnline"
                 hide-details
                 label="End Date"
                 placeholder="Select end date"
@@ -125,6 +127,7 @@
           <v-select
             clearable
             density="comfortable"
+            :disabled="!onlineState.isOnline"
             hide-details
             :items="quickRanges"
             label="Quick range"
@@ -136,6 +139,10 @@
         </v-col>
       </v-row>
     </v-card>
+
+    <v-alert v-if="offlineNotice" class="mb-4" type="info" variant="tonal">
+      {{ offlineNotice }}
+    </v-alert>
 
     <v-alert v-if="errorMessage" class="mb-4" type="error" variant="tonal">
       {{ errorMessage }}
@@ -149,6 +156,7 @@
             <span class="kpi-label">Gross sales</span>
             <span class="kpi-icon"><v-icon icon="mdi-cash-multiple" size="16" /></span>
           </div>
+
           <div class="kpi-value">{{ formatCurrency(summary.grossSales) }}</div>
         </v-card>
       </v-col>
@@ -159,6 +167,7 @@
             <span class="kpi-label">Discounts</span>
             <span class="kpi-icon"><v-icon icon="mdi-sale" size="16" /></span>
           </div>
+
           <div class="kpi-value text-error">-{{ formatCurrency(summary.discounts) }}</div>
         </v-card>
       </v-col>
@@ -169,6 +178,7 @@
             <span class="kpi-label">Tax collected</span>
             <span class="kpi-icon"><v-icon icon="mdi-receipt-text-outline" size="16" /></span>
           </div>
+
           <div class="kpi-value">{{ formatCurrency(summary.tax) }}</div>
         </v-card>
       </v-col>
@@ -179,7 +189,12 @@
             <span class="kpi-label">Net revenue</span>
             <span class="kpi-icon"><v-icon icon="mdi-chart-line" size="16" /></span>
           </div>
+
           <div class="kpi-value text-primary">{{ formatCurrency(summary.netRevenue) }}</div>
+
+          <div v-if="secondaryNetRevenue" class="kpi-secondary text-medium-emphasis">
+            ≈ {{ secondaryNetRevenue }}
+          </div>
         </v-card>
       </v-col>
     </v-row>
@@ -191,6 +206,7 @@
             <span class="kpi-label">Net sales</span>
             <span class="kpi-icon"><v-icon icon="mdi-cart-check" size="16" /></span>
           </div>
+
           <div class="kpi-value">{{ formatCurrency(summary.netSales) }}</div>
         </v-card>
       </v-col>
@@ -201,6 +217,7 @@
             <span class="kpi-label">Transactions</span>
             <span class="kpi-icon"><v-icon icon="mdi-receipt-text-check-outline" size="16" /></span>
           </div>
+
           <div class="kpi-value">{{ summary.count }}</div>
         </v-card>
       </v-col>
@@ -211,6 +228,7 @@
             <span class="kpi-label">Avg. sale</span>
             <span class="kpi-icon"><v-icon icon="mdi-calculator-variant-outline" size="16" /></span>
           </div>
+
           <div class="kpi-value">{{ formatCurrency(summary.average) }}</div>
         </v-card>
       </v-col>
@@ -221,7 +239,19 @@
             <span class="kpi-label">Items sold</span>
             <span class="kpi-icon"><v-icon icon="mdi-package-variant" size="16" /></span>
           </div>
+
           <div class="kpi-value">{{ summary.itemsSold }}</div>
+        </v-card>
+      </v-col>
+
+      <v-col cols="6" md="3">
+        <v-card class="kpi-tile" rounded="lg" variant="flat">
+          <div class="kpi-top">
+            <span class="kpi-label">Refunds</span>
+            <span class="kpi-icon"><v-icon icon="mdi-cash-refund" size="16" /></span>
+          </div>
+
+          <div class="kpi-value text-error">-{{ formatCurrency(summary.refunds) }}</div>
         </v-card>
       </v-col>
     </v-row>
@@ -242,18 +272,23 @@
         <template #item.date="{ item }">
           <span class="price-mono">{{ formatDateLabel(item.date) }}</span>
         </template>
+
         <template #item.count="{ item }">
           {{ item.count }}
         </template>
+
         <template #item.grossSales="{ item }">
           <span class="price-mono">{{ formatCurrency(item.grossSales) }}</span>
         </template>
+
         <template #item.discounts="{ item }">
           <span class="price-mono text-error">-{{ formatCurrency(item.discounts) }}</span>
         </template>
+
         <template #item.tax="{ item }">
           <span class="price-mono">{{ formatCurrency(item.tax) }}</span>
         </template>
+
         <template #item.netRevenue="{ item }">
           <strong class="price-mono text-primary">{{ formatCurrency(item.netRevenue) }}</strong>
         </template>
@@ -289,9 +324,11 @@
             {{ item.paymentMethod }}
           </v-chip>
         </template>
+
         <template #item.count="{ item }">
           {{ item.count }}
         </template>
+
         <template #item.netRevenue="{ item }">
           <strong class="price-mono text-primary">{{ formatCurrency(item.netRevenue) }}</strong>
         </template>
@@ -312,20 +349,31 @@
 </template>
 
 <script lang="ts" setup>
-  import type { Sale } from '@/types/pos'
+  import type { Refund, Sale } from '@/types/pos'
   import autoTable from 'jspdf-autotable'
-  import { computed, onMounted, ref } from 'vue'
-  import { getSales } from '@/composables/useSupabase'
+  import { computed, onMounted, ref, watch } from 'vue'
+  import { cachedFetch } from '@/composables/useOfflineCache'
+  import { useOnline } from '@/composables/useOnline'
+  import { useSettings } from '@/composables/useSettings'
+  import { getAllRefunds, getSales } from '@/composables/useSupabase'
   import { useBranchStore } from '@/stores/branch'
-  import { formatCurrency } from '@/utils/currency'
+  import { formatCurrency, formatCurrencyAs } from '@/utils/currency'
 
   const branchStore = useBranchStore()
+  const { state: settingsState } = useSettings()
+  const { state: onlineState } = useOnline()
   const sales = ref<Sale[]>([])
+  const refunds = ref<Refund[]>([])
   const errorMessage = ref('')
+  const offlineNotice = ref('')
 
   const branchFilter = ref<number | null>(null)
-  const startDate = ref<string | null>(null)
-  const endDate = ref<string | null>(null)
+  // Defaults to the last 30 days rather than unbounded — bounds the default
+  // getSales()/getAllRefunds() requests instead of pulling all-time history
+  // on every visit. "Clear" (below) still allows an explicit, occasional
+  // full-history view.
+  const startDate = ref<string | null>(defaultRangeStart())
+  const endDate = ref<string | null>(new Date().toISOString())
 
   const startMenu = ref(false)
   const endMenu = ref(false)
@@ -363,31 +411,54 @@
     return d
   }
 
+  function defaultRangeStart () {
+    const date = new Date()
+    date.setDate(date.getDate() - 29)
+    return date.toISOString()
+  }
+
+  // The from/to actually sent to getSales() — start/end of day so the
+  // range is inclusive of both endpoints, matching what the date pickers show.
+  function dateRangeParams () {
+    const range: { from?: string, to?: string } = {}
+    if (startDate.value) {
+      range.from = startOfDay(new Date(startDate.value)).toISOString()
+    }
+    if (endDate.value) {
+      range.to = endOfDay(new Date(endDate.value)).toISOString()
+    }
+    return range
+  }
+
+  // Date range is applied server-side (loadData() below) — this only
+  // handles branch, which doesn't reduce transferred rows enough to be
+  // worth its own network round trip.
   const filteredSales = computed(() => {
     return sales.value.filter(sale => {
-      const saleDate = new Date(sale.date)
-
-      if (branchFilter.value && sale.branchId !== branchFilter.value) {
-        return false
-      }
-
-      if (startDate.value && saleDate < startOfDay(new Date(startDate.value))) {
-        return false
-      }
-
-      if (endDate.value && saleDate > endOfDay(new Date(endDate.value))) {
-        return false
-      }
-
-      return true
+      return !branchFilter.value || sale.branchId === branchFilter.value
     })
   })
+
+  // Refunded amount per sale id — folded into net revenue below so a
+  // refunded/voided sale doesn't overstate how much was actually earned.
+  const refundsBySaleId = computed(() => {
+    const map = new Map<string, number>()
+    for (const refund of refunds.value) {
+      map.set(refund.saleId, (map.get(refund.saleId) ?? 0) + refund.amount)
+    }
+    return map
+  })
+
+  function refundedAmount (saleId: string) {
+    return refundsBySaleId.value.get(saleId) ?? 0
+  }
 
   const summary = computed(() => {
     const grossSales = filteredSales.value.reduce((sum, sale) => sum + sale.subtotal, 0)
     const discounts = filteredSales.value.reduce((sum, sale) => sum + sale.discount, 0)
     const tax = filteredSales.value.reduce((sum, sale) => sum + sale.tax, 0)
-    const netRevenue = filteredSales.value.reduce((sum, sale) => sum + sale.grandTotal, 0)
+    const refundsTotal = filteredSales.value.reduce((sum, sale) => sum + refundedAmount(sale.id), 0)
+    const netRevenue = filteredSales.value.reduce((sum, sale) => sum + sale.grandTotal, 0) - refundsTotal
     const netSales = grossSales - discounts
     const count = filteredSales.value.length
     const itemsSold = filteredSales.value.reduce(
@@ -399,12 +470,28 @@
       grossSales,
       discounts,
       tax,
+      refunds: refundsTotal,
       netRevenue,
       netSales,
       count,
       average: count > 0 ? netRevenue / count : 0,
       itemsSold,
     }
+  })
+
+  // Each sale converted at its OWN historical rate (falling back to today's
+  // rate for sales recorded before dual-currency existed) before summing —
+  // not the aggregate converted at today's rate, which would misrepresent
+  // older sales if the rate has since changed.
+  const secondaryNetRevenue = computed(() => {
+    if (!settingsState.currency.exchangeRate) return ''
+
+    const total = filteredSales.value.reduce((sum, sale) => {
+      const rate = sale.exchangeRate || settingsState.currency.exchangeRate
+      return sum + (sale.grandTotal - refundedAmount(sale.id)) * rate
+    }, 0)
+
+    return formatCurrencyAs(total, settingsState.currency.secondary)
   })
 
   const dailyBreakdown = computed(() => {
@@ -417,7 +504,7 @@
       row.grossSales += sale.subtotal
       row.discounts += sale.discount
       row.tax += sale.tax
-      row.netRevenue += sale.grandTotal
+      row.netRevenue += sale.grandTotal - refundedAmount(sale.id)
       map.set(key, row)
     }
 
@@ -430,15 +517,60 @@
     for (const sale of filteredSales.value) {
       const row = map.get(sale.paymentMethod) ?? { paymentMethod: sale.paymentMethod, count: 0, netRevenue: 0 }
       row.count += 1
-      row.netRevenue += sale.grandTotal
+      row.netRevenue += sale.grandTotal - refundedAmount(sale.id)
       map.set(sale.paymentMethod, row)
     }
 
     return [...map.values()].sort((a, b) => b.netRevenue - a.netRevenue)
   })
 
+  interface PnlRangeCache {
+    range: { from?: string, to?: string }
+    sales: Sale[]
+    refunds: Refund[]
+  }
+
+  async function loadData () {
+    try {
+      const range = dateRangeParams()
+      // Cached as a single "last viewed range" slot (not one per range),
+      // sales+refunds+range together, so a fall-back-to-cache while offline
+      // can say which range is actually being shown instead of silently
+      // pretending the currently-selected picker range was honored.
+      const result = await cachedFetch<PnlRangeCache>(
+        'sales:lastRange:pnl',
+        async () => {
+          const saleRows = await getSales(range)
+          // Scoped to just the sales in view — a refund is matched to its
+          // sale by id regardless of which day the refund itself was
+          // recorded, so this stays correct without pulling every refund
+          // ever recorded.
+          const refundRows = await getAllRefunds(saleRows.map(sale => sale.id))
+          return { range, sales: saleRows, refunds: refundRows }
+        },
+        onlineState.isOnline,
+      )
+      sales.value = result.data.sales
+      refunds.value = result.data.refunds
+      if (result.fromCache) {
+        const fmt = (iso?: string) => iso ? new Date(iso).toLocaleDateString() : 'the beginning'
+        offlineNotice.value = `Offline — showing cached figures from ${fmt(result.data.range.from)} to ${fmt(result.data.range.to)}. Date filters are disabled until reconnected.`
+      } else {
+        offlineNotice.value = ''
+      }
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : 'Unable to load sales data.'
+    }
+  }
+
+  // Re-queries Supabase with the new bounds — this is what actually avoids
+  // downloading unrelated history, not just re-filtering the same full set.
+  watch([startDate, endDate], loadData)
+
   function clearFilters () {
     branchFilter.value = null
+    // null means "all time" here — an explicit, occasional full-history
+    // fetch, not the default.
     startDate.value = null
     endDate.value = null
   }
@@ -446,25 +578,39 @@
   function applyQuickRange (range: string | null) {
     const now = new Date()
 
-    if (range === 'Today') {
-      startDate.value = now.toISOString()
-      endDate.value = now.toISOString()
-    } else if (range === 'Last 7 days') {
-      const start = new Date(now)
-      start.setDate(start.getDate() - 6)
-      startDate.value = start.toISOString()
-      endDate.value = now.toISOString()
-    } else if (range === 'This month') {
-      startDate.value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-      endDate.value = now.toISOString()
-    } else if (range === 'Last month') {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      const end = new Date(now.getFullYear(), now.getMonth(), 0)
-      startDate.value = start.toISOString()
-      endDate.value = end.toISOString()
-    } else {
-      startDate.value = null
-      endDate.value = null
+    switch (range) {
+      case 'Today': {
+        startDate.value = now.toISOString()
+        endDate.value = now.toISOString()
+
+        break
+      }
+      case 'Last 7 days': {
+        const start = new Date(now)
+        start.setDate(start.getDate() - 6)
+        startDate.value = start.toISOString()
+        endDate.value = now.toISOString()
+
+        break
+      }
+      case 'This month': {
+        startDate.value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+        endDate.value = now.toISOString()
+
+        break
+      }
+      case 'Last month': {
+        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const end = new Date(now.getFullYear(), now.getMonth(), 0)
+        startDate.value = start.toISOString()
+        endDate.value = end.toISOString()
+
+        break
+      }
+      default: {
+        startDate.value = null
+        endDate.value = null
+      }
     }
   }
 
@@ -519,6 +665,7 @@
         ['Discounts', `-${formatCurrency(summary.value.discounts)}`],
         ['Net Sales', formatCurrency(summary.value.netSales)],
         ['Tax Collected', formatCurrency(summary.value.tax)],
+        ['Refunds', `-${formatCurrency(summary.value.refunds)}`],
         ['Net Revenue', formatCurrency(summary.value.netRevenue)],
         ['Transactions', String(summary.value.count)],
         ['Items Sold', String(summary.value.itemsSold)],
@@ -565,12 +712,7 @@
   }
 
   onMounted(async () => {
-    try {
-      const [saleRows] = await Promise.all([getSales(), branchStore.loadBranches()])
-      sales.value = saleRows
-    } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : 'Unable to load sales data.'
-    }
+    await Promise.all([loadData(), branchStore.loadBranches()])
   })
 </script>
 
@@ -650,6 +792,12 @@
   font-family: var(--font-heading);
   font-size: 1.5rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-secondary {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
 }
 

@@ -64,6 +64,29 @@
     <v-spacer />
 
     <div class="rail-footer">
+      <v-tooltip v-if="pendingCount > 0 || failedCount > 0" location="top">
+        <template #activator="{ props: tooltipProps }">
+          <v-chip
+            class="mb-2"
+            :color="failedCount > 0 ? 'error' : 'warning'"
+            :prepend-icon="failedCount > 0 ? 'mdi-alert-circle-outline' : 'mdi-cloud-sync-outline'"
+            size="small"
+            v-bind="tooltipProps"
+            variant="tonal"
+          >
+            {{ failedCount > 0 ? `${failedCount} need attention` : `${pendingCount} pending sync` }}
+          </v-chip>
+        </template>
+
+        <span v-if="failedCount > 0">
+          {{ failedCount }} offline sale(s) couldn't sync automatically — a manager should check them.
+        </span>
+
+        <span v-else>
+          {{ pendingCount }} sale(s) recorded offline, waiting to sync once reconnected.
+        </span>
+      </v-tooltip>
+
       <v-divider class="mb-2" />
 
       <div class="rail-footer-row">
@@ -100,6 +123,18 @@
       </v-app-bar-title>
 
       <v-spacer />
+
+      <v-chip
+        v-if="pendingCount > 0 || failedCount > 0"
+        class="ml-1"
+        :color="failedCount > 0 ? 'error' : 'warning'"
+        density="comfortable"
+        :prepend-icon="failedCount > 0 ? 'mdi-alert-circle-outline' : 'mdi-cloud-sync-outline'"
+        size="small"
+        variant="tonal"
+      >
+        {{ failedCount > 0 ? failedCount : pendingCount }}
+      </v-chip>
 
       <v-menu>
         <template #activator="{ props: menuProps }">
@@ -175,6 +210,7 @@
   import { useRouter } from 'vue-router'
   import { useDisplay, useTheme } from 'vuetify'
   import { useCart } from '@/composables/useCart'
+  import { useSalesSyncQueue } from '@/composables/useSalesSyncQueue'
   import { useAppStore } from '@/stores/app'
   import { useAuthStore } from '@/stores/auth'
   import { useBranchStore } from '@/stores/branch'
@@ -186,6 +222,7 @@
   const appStore = useAppStore()
   const authStore = useAuthStore()
   const branchStore = useBranchStore()
+  const { pendingCount, failedCount } = useSalesSyncQueue()
 
   onMounted(() => {
     branchStore.loadBranches()
@@ -204,12 +241,14 @@
 
   const cartRoute = '/cart'
   const allNavigationItems: Array<{ title: string, icon: string, to: string, roles: Role[] }> = [
-    { title: 'Home', icon: 'mdi-view-dashboard', to: '/', roles: ['admin'] },
-    { title: 'POS', icon: 'mdi-cash-register', to: '/pos', roles: ['admin', 'salesperson'] },
-    { title: 'Cart', icon: 'mdi-cart', to: cartRoute, roles: ['admin', 'salesperson'] },
-    { title: 'Inventory', icon: 'mdi-warehouse', to: '/inventory', roles: ['admin'] },
-    { title: 'Sales', icon: 'mdi-history', to: '/sales', roles: ['admin'] },
-    { title: 'P&L', icon: 'mdi-finance', to: '/pnl', roles: ['admin'] },
+    { title: 'Home', icon: 'mdi-view-dashboard', to: '/', roles: ['admin', 'manager'] },
+    { title: 'POS', icon: 'mdi-cash-register', to: '/pos', roles: ['admin', 'manager', 'salesperson'] },
+    { title: 'Cart', icon: 'mdi-cart', to: cartRoute, roles: ['admin', 'manager', 'salesperson'] },
+    { title: 'Inventory', icon: 'mdi-warehouse', to: '/inventory', roles: ['admin', 'manager'] },
+    { title: 'Sales', icon: 'mdi-history', to: '/sales', roles: ['admin', 'manager'] },
+    { title: 'Customers', icon: 'mdi-account-multiple-outline', to: '/customers', roles: ['admin', 'manager'] },
+    { title: 'P&L', icon: 'mdi-finance', to: '/pnl', roles: ['admin', 'manager'] },
+    { title: 'Settings', icon: 'mdi-cog-outline', to: '/settings', roles: ['admin', 'manager'] },
   ]
 
   const navigationItems = computed(() =>

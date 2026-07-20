@@ -3,6 +3,7 @@ import tailwindcss from '@tailwindcss/vite'
 import Vue from '@vitejs/plugin-vue'
 import Fonts from 'unplugin-fonts/vite'
 import { defineConfig } from 'vite'
+import { VitePWA } from 'vite-plugin-pwa'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 
 // https://vitejs.dev/config/
@@ -35,6 +36,50 @@ export default defineConfig({
             weights: [500, 600, 700],
           },
         ],
+      },
+    }),
+    VitePWA({
+      // The app itself decides when to activate a new version (see
+      // usePwaUpdate.ts) — 'autoUpdate' would force-reload the tab the
+      // instant a new deploy is detected, which could wipe an in-progress
+      // sale mid-checkout.
+      registerType: 'prompt',
+      injectRegister: false,
+      devOptions: { enabled: false },
+      manifest: {
+        name: 'Retail POS',
+        short_name: 'POS',
+        description: 'Retail point-of-sale',
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+        theme_color: '#0E6E64',
+        background_color: '#F5F7F7',
+        icons: [
+          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          {
+            src: '/pwa-maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,woff2,png,svg,ico}'],
+        // Lets a cold, fully-offline reopen of any deep link (e.g. /inventory)
+        // still resolve to the cached app shell, mirroring vercel.json's SPA
+        // rewrite (which obviously can't fire with no network at all).
+        navigateFallback: '/index.html',
+        cleanupOutdatedCaches: true,
+        // Deliberately no runtimeCaching entries: every Supabase call is a
+        // cross-origin request straight to the Supabase project URL (no
+        // same-origin /api routes exist in prod — the dev-only proxy above
+        // is dead config), so Workbox with no runtime-caching rules never
+        // intercepts it. That's required so the offline sales queue
+        // (useSalesSyncQueue.ts) sees a real network success/failure to
+        // react to instead of a stale cached response.
       },
     }),
   ],

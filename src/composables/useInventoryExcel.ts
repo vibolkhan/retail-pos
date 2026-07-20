@@ -9,8 +9,9 @@ import type { Branch, Category } from '@/types/pos'
 import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 import {
-  createProductInventory,
-  updateProductInventory,
+  createProduct,
+  saveBranchStockBulk,
+  updateProduct,
   uploadProductImage,
 } from '@/composables/useSupabase'
 
@@ -370,6 +371,10 @@ export async function importInventoryFromExcel (
 
   const summary: ImportSummary = { created: 0, updated: 0, errors: [] }
   const lastRow = sheet.actualRowCount
+  // Collected across every row and written in one saveBranchStockBulk()
+  // call after the loop, instead of one branch_stock upsert per product —
+  // a 500-row import would otherwise be 500 extra round trips.
+  const pendingStocks: Array<{ productId: number, branchId: number, stock: number }> = []
 
   for (let rowNumber = 2; rowNumber <= lastRow; rowNumber++) {
     const row = sheet.getRow(rowNumber)
@@ -432,12 +437,18 @@ export async function importInventoryFromExcel (
         image,
       }
 
+      let productId: number
       if (existing) {
-        await updateProductInventory({ id: existing.id, ...payload }, stocks)
+        await updateProduct({ id: existing.id, ...payload })
+        productId = existing.id
         summary.updated++
       } else {
-        await createProductInventory(payload, stocks)
+        const created = await createProduct(payload)
+        productId = created.id
         summary.created++
+      }
+      for (const { branchId, stock } of stocks) {
+        pendingStocks.push({ productId, branchId, stock })
       }
     } catch (error) {
       summary.errors.push({
@@ -446,6 +457,8 @@ export async function importInventoryFromExcel (
       })
     }
   }
+
+  await saveBranchStockBulk(pendingStocks)
 
   return summary
 }

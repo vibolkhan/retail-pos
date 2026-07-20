@@ -2,6 +2,8 @@
 import type { Branch } from '@/types/pos'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { cachedFetch } from '@/composables/useOfflineCache'
+import { useOnline } from '@/composables/useOnline'
 import { getBranches } from '@/composables/useSupabase'
 import { useAppStore } from '@/stores/app'
 
@@ -36,7 +38,8 @@ export const useBranchStore = defineStore('branch', () => {
     if (branches.value.length > 0) {
       return
     }
-    branches.value = await getBranches()
+    const { data } = await cachedFetch('branches', getBranches, useOnline().state.isOnline)
+    branches.value = data
     // Default to the retail branch when nothing valid is selected yet
     if (!branches.value.some(b => b.id === activeBranchId.value)) {
       const retail = branches.value.find(b => b.type === 'retail') ?? branches.value[0]

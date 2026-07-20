@@ -9,40 +9,62 @@
         @change="onImportFileChange"
       >
 
-      <v-btn
-        :loading="importing"
-        prepend-icon="mdi-file-upload-outline"
-        variant="outlined"
-        @click="triggerImportPicker"
-      >
-        Import Excel
-      </v-btn>
+      <v-tooltip :disabled="onlineState.isOnline" text="Reconnect to import inventory">
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            :disabled="!onlineState.isOnline"
+            :loading="importing"
+            prepend-icon="mdi-file-upload-outline"
+            variant="outlined"
+            @click="triggerImportPicker"
+          >
+            Import Excel
+          </v-btn>
+        </template>
+      </v-tooltip>
 
-      <v-btn
-        :loading="exporting"
-        prepend-icon="mdi-file-download-outline"
-        variant="outlined"
-        @click="onExportClick"
-      >
-        Export Excel
-      </v-btn>
+      <v-tooltip :disabled="onlineState.isOnline" text="Reconnect to export inventory (product photos need a live connection)">
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            :disabled="!onlineState.isOnline"
+            :loading="exporting"
+            prepend-icon="mdi-file-download-outline"
+            variant="outlined"
+            @click="onExportClick"
+          >
+            Export Excel
+          </v-btn>
+        </template>
+      </v-tooltip>
 
-      <v-btn
-        color="primary"
-        prepend-icon="mdi-plus"
-        variant="flat"
-        @click="openCreateDialog"
-      >
-        Create Product
-      </v-btn>
+      <v-tooltip :disabled="onlineState.isOnline" text="Reconnect to create a product">
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            color="primary"
+            :disabled="!onlineState.isOnline"
+            prepend-icon="mdi-plus"
+            variant="flat"
+            @click="openCreateDialog"
+          >
+            Create Product
+          </v-btn>
+        </template>
+      </v-tooltip>
     </div>
+
+    <v-alert v-if="offlineNotice" class="mb-4" type="info" variant="tonal">
+      {{ offlineNotice }}
+    </v-alert>
 
     <v-alert v-if="errorMessage" class="mb-4" type="error" variant="tonal">
       {{ errorMessage }}
     </v-alert>
 
     <v-row class="mb-4">
-      <v-col cols="12" md="8">
+      <v-col cols="12" md="6">
         <v-text-field
           v-model="search"
           clearable
@@ -54,7 +76,7 @@
         />
       </v-col>
 
-      <v-col cols="12" md="4">
+      <v-col cols="12" md="3">
         <v-select
           v-model="channelFilter"
           density="comfortable"
@@ -62,6 +84,18 @@
           :items="channelOptions"
           label="Sales channel"
           prepend-inner-icon="mdi-eye"
+          variant="outlined"
+        />
+      </v-col>
+
+      <v-col cols="12" md="3">
+        <v-select
+          v-model="statusFilter"
+          density="comfortable"
+          hide-details
+          :items="statusOptions"
+          label="Status"
+          prepend-inner-icon="mdi-archive-outline"
           variant="outlined"
         />
       </v-col>
@@ -157,33 +191,55 @@
       </template>
 
       <template #item.actions="{ item }">
-        <v-tooltip text="Edit product">
-          <template #activator="{ props }">
-            <v-btn
-              v-bind="props"
-              aria-label="Edit product"
-              color="primary"
-              icon="mdi-pencil"
-              size="small"
-              variant="text"
-              @click="openEditDialog(item)"
-            />
-          </template>
-        </v-tooltip>
+        <template v-if="item.deletedAt">
+          <v-tooltip :text="onlineState.isOnline ? 'Restore product' : 'Reconnect to restore this product'">
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                aria-label="Restore product"
+                color="primary"
+                :disabled="!onlineState.isOnline"
+                icon="mdi-restore"
+                :loading="restoringId === item.id"
+                size="small"
+                variant="text"
+                @click="restoreProduct(item)"
+              />
+            </template>
+          </v-tooltip>
+        </template>
 
-        <v-tooltip text="Delete product">
-          <template #activator="{ props }">
-            <v-btn
-              v-bind="props"
-              aria-label="Delete product"
-              color="error"
-              icon="mdi-delete-outline"
-              size="small"
-              variant="text"
-              @click="openDeleteDialog(item)"
-            />
-          </template>
-        </v-tooltip>
+        <template v-else>
+          <v-tooltip :text="onlineState.isOnline ? 'Edit product' : 'Reconnect to edit this product'">
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                aria-label="Edit product"
+                color="primary"
+                :disabled="!onlineState.isOnline"
+                icon="mdi-pencil"
+                size="small"
+                variant="text"
+                @click="openEditDialog(item)"
+              />
+            </template>
+          </v-tooltip>
+
+          <v-tooltip :text="onlineState.isOnline ? 'Delete product' : 'Reconnect to delete this product'">
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                aria-label="Delete product"
+                color="error"
+                :disabled="!onlineState.isOnline"
+                icon="mdi-delete-outline"
+                size="small"
+                variant="text"
+                @click="openDeleteDialog(item)"
+              />
+            </template>
+          </v-tooltip>
+        </template>
       </template>
 
       <template #no-data>
@@ -454,6 +510,7 @@
 
             <v-btn
               color="primary"
+              :disabled="!onlineState.isOnline"
               :loading="saving"
               type="submit"
               variant="flat"
@@ -513,8 +570,9 @@
 
         <v-card-text>
           Are you sure you want to delete
-          <strong>{{ productToDelete?.name }}</strong>? This will also remove
-          its stock records for every branch. This action cannot be undone.
+          <strong>{{ productToDelete?.name }}</strong>? It will disappear from
+          the POS and inventory list, but its stock records are kept — you
+          can restore it later from the "Deleted" status filter.
         </v-card-text>
 
         <v-card-actions class="px-6 pb-5">
@@ -524,6 +582,7 @@
 
           <v-btn
             color="error"
+            :disabled="!onlineState.isOnline"
             :loading="deleting"
             variant="flat"
             @click="confirmDeleteProduct"
@@ -589,11 +648,14 @@
     exportInventoryToExcel,
     importInventoryFromExcel,
   } from '@/composables/useInventoryExcel'
+  import { cachedFetch } from '@/composables/useOfflineCache'
+  import { useOnline } from '@/composables/useOnline'
   import {
     createProductInventory,
     deleteProductInventory,
     getCategories,
     getInventoryProducts,
+    restoreProductInventory,
     updateProductInventory,
     uploadProductImage,
   } from '@/composables/useSupabase'
@@ -604,6 +666,7 @@
 
   type DialogMode = 'create' | 'edit'
   type ChannelFilter = 'all' | 'retail' | 'wholesale' | 'both' | 'hidden'
+  type StatusFilter = 'active' | 'deleted'
 
   interface ProductForm {
     id: number | null
@@ -625,12 +688,15 @@
 
   const branchStore = useBranchStore()
   const toast = useToast()
+  const { state: onlineState } = useOnline()
   const products = ref<InventoryProduct[]>([])
   const categories = ref<Category[]>([])
   const loading = ref(true)
+  const offlineNotice = ref('')
   const saving = ref(false)
   const search = ref('')
   const channelFilter = ref<ChannelFilter>('all')
+  const statusFilter = ref<StatusFilter>('active')
   const errorMessage = ref('')
   const dialogOpen = ref(false)
   const dialogMode = ref<DialogMode>('create')
@@ -638,6 +704,7 @@
   const deleteDialogOpen = ref(false)
   const productToDelete = ref<InventoryProduct | null>(null)
   const deleting = ref(false)
+  const restoringId = ref<number | null>(null)
   const exporting = ref(false)
   const importing = ref(false)
   const importFileInputRef = ref<HTMLInputElement | null>(null)
@@ -671,6 +738,10 @@
     { title: 'Both channels', value: 'both' },
     { title: 'Hidden (neither)', value: 'hidden' },
   ]
+  const statusOptions = [
+    { title: 'Active', value: 'active' },
+    { title: 'Deleted', value: 'deleted' },
+  ]
 
   const dialogTitle = computed(() =>
     dialogMode.value === 'create' ? 'Create product' : 'Edit product',
@@ -697,8 +768,10 @@
           || (channelFilter.value === 'wholesale' && product.sellableWholesale && !product.sellableRetail)
           || (channelFilter.value === 'both' && product.sellableRetail && product.sellableWholesale)
           || (channelFilter.value === 'hidden' && !product.sellableRetail && !product.sellableWholesale)
+      const matchesStatus
+        = statusFilter.value === 'active' ? !product.deletedAt : Boolean(product.deletedAt)
 
-      return matchesSearch && matchesChannel
+      return matchesSearch && matchesChannel && matchesStatus
     })
   })
 
@@ -870,9 +943,8 @@
 
     try {
       await deleteProductInventory(productToDelete.value.id)
-      products.value = products.value.filter(
-        item => item.id !== productToDelete.value?.id,
-      )
+      const deleted = products.value.find(item => item.id === productToDelete.value?.id)
+      if (deleted) deleted.deletedAt = new Date().toISOString()
       toast.show(`${productToDelete.value.name} deleted.`)
       closeDeleteDialog()
     } catch (error) {
@@ -882,6 +954,23 @@
       )
     } finally {
       deleting.value = false
+    }
+  }
+
+  async function restoreProduct (product: InventoryProduct) {
+    restoringId.value = product.id
+    try {
+      await restoreProductInventory(product.id)
+      const restored = products.value.find(item => item.id === product.id)
+      if (restored) restored.deletedAt = null
+      toast.show(`${product.name} restored.`)
+    } catch (error) {
+      toast.show(
+        error instanceof Error ? error.message : 'Unable to restore product.',
+        'error',
+      )
+    } finally {
+      restoringId.value = null
     }
   }
 
@@ -1034,15 +1123,22 @@
   async function loadProducts () {
     loading.value = true
     errorMessage.value = ''
+    offlineNotice.value = ''
 
     try {
-      const [categoryRows, productRows] = await Promise.all([
-        getCategories(),
-        getInventoryProducts(),
+      const [categoryResult, productResult] = await Promise.all([
+        cachedFetch('categories', getCategories, onlineState.isOnline),
+        cachedFetch('inventory', getInventoryProducts, onlineState.isOnline),
         branchStore.loadBranches(),
       ])
-      categories.value = categoryRows
-      products.value = productRows
+      categories.value = categoryResult.data
+      products.value = productResult.data
+      if (categoryResult.fromCache || productResult.fromCache) {
+        const cachedAt = productResult.cachedAt ?? categoryResult.cachedAt
+        offlineNotice.value = cachedAt
+          ? `Offline — showing inventory as of ${new Date(cachedAt).toLocaleTimeString()}. Editing is disabled until reconnected.`
+          : 'Offline — showing the last loaded inventory. Editing is disabled until reconnected.'
+      }
     } catch (error) {
       errorMessage.value
         = error instanceof Error ? error.message : 'Unable to load inventory.'

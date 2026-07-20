@@ -18,6 +18,18 @@
       <v-snackbar v-model="toast.state.show" :color="toast.state.color" timeout="3000">
         {{ toast.state.message }}
       </v-snackbar>
+
+      <!-- No timeout: an update should wait for the cashier to act on it,
+           not disappear mid-shift and get forgotten. -->
+      <v-snackbar v-model="pwaUpdate.state.needsRefresh" color="primary" timeout="-1">
+        A new version is available.
+
+        <template #actions>
+          <v-btn variant="text" @click="pwaUpdate.applyUpdate()">
+            Reload
+          </v-btn>
+        </template>
+      </v-snackbar>
     </template>
 
     <v-main v-else class="d-flex align-center justify-center" style="height: 100vh">
@@ -27,15 +39,56 @@
 </template>
 
 <script lang="ts" setup>
-  import { computed } from 'vue'
+  import { computed, onMounted, onUnmounted, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import AppHeader from '@/components/AppHeader.vue'
+  import { useOnline } from '@/composables/useOnline'
+  import { usePwaUpdate } from '@/composables/usePwaUpdate'
+  import { useSalesSyncQueue } from '@/composables/useSalesSyncQueue'
+  import { useSettings } from '@/composables/useSettings'
   import { useToast } from '@/composables/useToast'
   import { useAuthStore } from '@/stores/auth'
 
   const route = useRoute()
   const authStore = useAuthStore()
   const toast = useToast()
+  const pwaUpdate = usePwaUpdate()
+  const { state: onlineState } = useOnline()
+  const { flush, pendingCount } = useSalesSyncQueue()
+  const { loadCurrencySettings, loadLoyaltySettings } = useSettings()
+
+  // Reconnecting is the main trigger — flush as soon as the browser fires
+  // the online event.
+  watch(() => onlineState.isOnline, isOnline => {
+    if (isOnline) void flush()
+  })
+
+  // Backstop for connections that recover without a reliable online event
+  // (a known browser quirk) — only bothers polling while something is
+  // actually pending.
+  let flushInterval: ReturnType<typeof setInterval> | undefined
+  onMounted(() => {
+    flushInterval = setInterval(() => {
+      if (onlineState.isOnline && pendingCount.value > 0) void flush()
+    }, 60_000)
+  })
+  onUnmounted(() => {
+    clearInterval(flushInterval)
+  })
+
+  // Loaded once, app-wide, as soon as the user is authenticated — every
+  // page that shows dual-currency pricing or loyalty points reads the same
+  // singleton state instead of each fetching its own copy.
+  watch(
+    () => authStore.isAuthenticated,
+    isAuthenticated => {
+      if (isAuthenticated) {
+        void loadCurrencySettings()
+        void loadLoyaltySettings()
+      }
+    },
+    { immediate: true },
+  )
 
   const showFlash = computed({
     get: () => !!authStore.flash,

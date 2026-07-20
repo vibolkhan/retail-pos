@@ -1,5 +1,9 @@
 <template>
   <v-container class="py-6 sales-page" fluid>
+    <v-alert v-if="offlineNotice" class="mb-4" type="info" variant="tonal">
+      {{ offlineNotice }}
+    </v-alert>
+
     <!-- Filter Card -->
     <v-card class="date-filter-card mb-6" rounded="lg" variant="flat">
       <div class="filter-header">
@@ -65,6 +69,7 @@
                 class="date-input"
                 clearable
                 density="comfortable"
+                :disabled="!onlineState.isOnline"
                 hide-details
                 label="Start Date"
                 placeholder="Select start date"
@@ -101,6 +106,7 @@
                 class="date-input"
                 clearable
                 density="comfortable"
+                :disabled="!onlineState.isOnline"
                 hide-details
                 label="End Date"
                 placeholder="Select end date"
@@ -152,6 +158,10 @@
         </v-chip>
       </template>
 
+      <template #item.cashierId="{ item }">
+        {{ cashierEmail(item.cashierId) }}
+      </template>
+
       <template #item.items="{ item }">
         <v-menu location="bottom">
           <template #activator="{ props }">
@@ -177,6 +187,10 @@
                 <v-list-item-title>
                   {{ orderItem.quantity }}{{ orderItem.uom === 'batch' ? ' ' + (orderItem.batchUnit ?? 'batch') : '' }} x {{ orderItem.name }}
                 </v-list-item-title>
+
+                <v-list-item-subtitle v-if="orderItem.discount">
+                  -{{ formatCurrency(orderItem.discount) }} line discount
+                </v-list-item-subtitle>
               </v-list-item>
             </v-list>
           </v-card>
@@ -199,6 +213,10 @@
         <strong class="price-mono text-primary">
           {{ formatCurrency(item.grandTotal) }}
         </strong>
+
+        <div v-if="secondaryTotal(item)" class="text-caption text-medium-emphasis price-mono">
+          ≈ {{ secondaryTotal(item) }}
+        </div>
       </template>
 
       <template #item.paymentMethod="{ item }">
@@ -208,6 +226,16 @@
           variant="tonal"
         >
           {{ item.paymentMethod }}
+        </v-chip>
+      </template>
+
+      <template #item.status="{ item }">
+        <v-chip
+          :color="statusColor(item.status)"
+          size="small"
+          variant="tonal"
+        >
+          {{ statusLabel(item.status) }}
         </v-chip>
       </template>
 
@@ -221,6 +249,20 @@
               size="small"
               variant="text"
               @click="openInvoice(item)"
+            />
+          </template>
+        </v-tooltip>
+
+        <v-tooltip v-if="canRefund(item)" :text="onlineState.isOnline ? 'Refund / Void' : 'Reconnect to refund/void'">
+          <template #activator="{ props }">
+            <v-btn
+              v-bind="props"
+              color="error"
+              :disabled="!onlineState.isOnline"
+              icon="mdi-cash-refund"
+              size="small"
+              variant="text"
+              @click="openRefundDialog(item)"
             />
           </template>
         </v-tooltip>
@@ -239,24 +281,115 @@
     </v-data-table>
 
     <ReceiptDialog v-model="dialog" :sale="selectedSale" />
+
+    <v-dialog v-model="refundDialogOpen" max-width="560">
+      <v-card v-if="refundSale">
+        <v-card-title class="receipt-title">
+          <span class="flex-grow-1">Refund / Void — #{{ refundSale.id }}</span>
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" @click="closeRefundDialog" />
+        </v-card-title>
+
+        <v-divider />
+
+        <v-card-text>
+          <v-alert v-if="refundSale.status !== 'completed'" class="mb-4" type="info" variant="tonal">
+            This sale is already {{ statusLabel(refundSale.status).toLowerCase() }}.
+            {{ refundSale.status === 'partially_refunded' ? 'You can refund remaining items below.' : '' }}
+          </v-alert>
+
+          <div v-for="saleItem in refundSale.items" :key="saleItem.productId" class="d-flex align-center ga-3 mb-3">
+            <div class="flex-grow-1">
+              <div class="font-weight-medium">{{ saleItem.name }}</div>
+
+              <div class="text-caption text-medium-emphasis">
+                Sold {{ saleItem.quantity }} · {{ refundRemaining[saleItem.productId] ?? 0 }} refundable
+              </div>
+            </div>
+
+            <v-text-field
+              v-model.number="refundQuantities[saleItem.productId]"
+              density="compact"
+              hide-details
+              :max="refundRemaining[saleItem.productId] ?? 0"
+              min="0"
+              style="width: 100px"
+              type="number"
+              variant="outlined"
+            />
+          </div>
+
+          <v-text-field
+            v-model="refundReason"
+            class="mt-2"
+            density="comfortable"
+            hide-details
+            label="Reason"
+            variant="outlined"
+          />
+        </v-card-text>
+
+        <v-card-actions class="px-6 pb-5">
+          <v-btn
+            color="error"
+            :disabled="refundSale.status !== 'completed' || !onlineState.isOnline"
+            :loading="refundLoading"
+            variant="outlined"
+            @click="confirmVoidSale"
+          >
+            Void entire sale
+          </v-btn>
+
+          <v-spacer />
+
+          <v-btn variant="text" @click="closeRefundDialog"> Cancel </v-btn>
+
+          <v-btn
+            color="primary"
+            :disabled="!onlineState.isOnline"
+            :loading="refundLoading"
+            variant="flat"
+            @click="confirmRefundItems"
+          >
+            Refund selected items
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <script lang="ts" setup>
-  import type { Sale } from '@/types/pos'
-  import { computed, onMounted, ref } from 'vue'
+  import type { AuthProfile } from '@/types/auth'
+  import type { RefundItem, Sale, SaleStatus } from '@/types/pos'
+  import { computed, onMounted, reactive, ref, watch } from 'vue'
   import ReceiptDialog from '@/components/ReceiptDialog.vue'
-  import { getSales } from '@/composables/useSupabase'
+  import { cachedFetch } from '@/composables/useOfflineCache'
+  import { useOnline } from '@/composables/useOnline'
+  import { useRefunds } from '@/composables/useRefunds'
+  import { useSettings } from '@/composables/useSettings'
+  import { getProfiles, getSales } from '@/composables/useSupabase'
+  import { useToast } from '@/composables/useToast'
   import { useBranchStore } from '@/stores/branch'
-  import { formatCurrency } from '@/utils/currency'
+  import { formatCurrency, formatSecondaryCurrency } from '@/utils/currency'
 
   const branchStore = useBranchStore()
+  const toast = useToast()
+  const { state: settingsState } = useSettings()
+  const { state: onlineState } = useOnline()
+  const { remainingQuantities, voidSale, refundSaleItems } = useRefunds()
   const sales = ref<Sale[]>([])
+  const profiles = ref<AuthProfile[]>([])
+  const offlineNotice = ref('')
 
   const searchKeyword = ref('')
   const branchFilter = ref<number | null>(null)
-  const startDate = ref<string | null>(null)
-  const endDate = ref<string | null>(null)
+  // Defaults to the last 30 days rather than unbounded — bounds the default
+  // getSales() request instead of pulling every sale ever recorded on every
+  // visit to this page. "Clear" (below) still allows an explicit, occasional
+  // full-history view.
+  const startDate = ref<string | null>(defaultRangeStart())
+  const endDate = ref<string | null>(new Date().toISOString())
 
   const startMenu = ref(false)
   const endMenu = ref(false)
@@ -268,14 +401,23 @@
     { title: 'Sale ID', value: 'id', sortable: true },
     { title: 'Date', value: 'date', sortable: true },
     { title: 'Branch', value: 'branchId', sortable: true },
+    { title: 'Cashier', value: 'cashierId', sortable: false },
     { title: 'Items', value: 'items', sortable: false },
     { title: 'Subtotal', value: 'subtotal', sortable: true },
     { title: 'Discount', value: 'discount', sortable: true },
     { title: 'Tax', value: 'tax', sortable: true },
     { title: 'Total', value: 'grandTotal', sortable: true },
     { title: 'Payment', value: 'paymentMethod', sortable: true },
-    { title: 'Invoice', value: 'invoice', sortable: false, align: 'end' },
+    { title: 'Status', value: 'status', sortable: true },
+    { title: 'Actions', value: 'invoice', sortable: false, align: 'end' },
   ] as const
+
+  const refundDialogOpen = ref(false)
+  const refundSale = ref<Sale | null>(null)
+  const refundRemaining = reactive<Record<number, number>>({})
+  const refundQuantities = reactive<Record<number, number>>({})
+  const refundReason = ref('')
+  const refundLoading = ref(false)
 
   const hasActiveFilters = computed(() => {
     return Boolean(
@@ -283,29 +425,16 @@
     )
   })
 
+  // Date range is applied server-side (loadSales() below) — this only
+  // handles branch/keyword, which don't reduce transferred rows enough to
+  // be worth a network round trip on every keystroke.
   const filteredSales = computed(() => {
     const keyword = searchKeyword.value.trim().toLowerCase()
 
     return sales.value
       .filter(sale => {
-        const saleDate = new Date(sale.date)
-
         if (branchFilter.value && sale.branchId !== branchFilter.value) {
           return false
-        }
-
-        if (startDate.value) {
-          const start = new Date(startDate.value)
-          start.setHours(0, 0, 0, 0)
-
-          if (saleDate < start) return false
-        }
-
-        if (endDate.value) {
-          const end = new Date(endDate.value)
-          end.setHours(23, 59, 59, 999)
-
-          if (saleDate > end) return false
         }
 
         if (keyword) {
@@ -327,9 +456,63 @@
       .toSorted((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   })
 
+  function defaultRangeStart () {
+    const date = new Date()
+    date.setDate(date.getDate() - 29)
+    return date.toISOString()
+  }
+
+  // The from/to actually sent to getSales() — start/end of day so the
+  // range is inclusive of both endpoints, matching what the date pickers show.
+  function dateRangeParams () {
+    const range: { from?: string, to?: string } = {}
+    if (startDate.value) {
+      const start = new Date(startDate.value)
+      start.setHours(0, 0, 0, 0)
+      range.from = start.toISOString()
+    }
+    if (endDate.value) {
+      const end = new Date(endDate.value)
+      end.setHours(23, 59, 59, 999)
+      range.to = end.toISOString()
+    }
+    return range
+  }
+
+  interface SalesRangeCache {
+    range: { from?: string, to?: string }
+    sales: Sale[]
+  }
+
+  async function loadSales () {
+    const range = dateRangeParams()
+    // Cached as a single "last viewed range" slot (not one per range) along
+    // with the range itself, so if this falls back to cache while offline,
+    // the banner below can say which range is actually being shown instead
+    // of silently pretending the currently-selected picker range was honored.
+    const result = await cachedFetch<SalesRangeCache>(
+      'sales:lastRange:history',
+      async () => ({ range, sales: await getSales(range) }),
+      onlineState.isOnline,
+    )
+    sales.value = result.data.sales
+    if (result.fromCache) {
+      const fmt = (iso?: string) => iso ? new Date(iso).toLocaleDateString() : 'the beginning'
+      offlineNotice.value = `Offline — showing cached sales from ${fmt(result.data.range.from)} to ${fmt(result.data.range.to)}. Date filters and refunds/voids are disabled until reconnected.`
+    } else {
+      offlineNotice.value = ''
+    }
+  }
+
+  // Re-queries Supabase with the new bounds — this is what actually avoids
+  // downloading unrelated history, not just re-filtering the same full set.
+  watch([startDate, endDate], loadSales)
+
   function clearFilters () {
     searchKeyword.value = ''
     branchFilter.value = null
+    // null means "all time" here — an explicit, occasional full-history
+    // fetch, not the default.
     startDate.value = null
     endDate.value = null
   }
@@ -340,6 +523,17 @@
 
   function branchIsWholesale (branchId: number) {
     return branchStore.branches.find(b => b.id === branchId)?.type === 'wholesale'
+  }
+
+  function cashierEmail (cashierId?: string | null) {
+    if (!cashierId) return '—'
+    return profiles.value.find(p => p.id === cashierId)?.email ?? '—'
+  }
+
+  // Uses the rate stored on the sale itself, not today's rate, so past
+  // sales never shift after the exchange rate is later changed in Settings.
+  function secondaryTotal (sale: Sale) {
+    return formatSecondaryCurrency(sale.grandTotal, settingsState.currency.secondary, sale.exchangeRate)
   }
 
   function openInvoice (sale: Sale) {
@@ -366,9 +560,99 @@
     return 'grey'
   }
 
+  function statusLabel (status?: SaleStatus) {
+    switch (status) {
+      case 'voided': { return 'Voided'
+      }
+      case 'partially_refunded': { return 'Partially refunded'
+      }
+      case 'refunded': { return 'Refunded'
+      }
+      default: { return 'Completed'
+      }
+    }
+  }
+
+  function statusColor (status?: SaleStatus) {
+    switch (status) {
+      case 'voided': { return 'error'
+      }
+      case 'partially_refunded': { return 'warning'
+      }
+      case 'refunded': { return 'grey'
+      }
+      default: { return 'success'
+      }
+    }
+  }
+
+  function canRefund (sale: Sale) {
+    return sale.status !== 'voided' && sale.status !== 'refunded'
+  }
+
+  async function openRefundDialog (sale: Sale) {
+    refundSale.value = sale
+    refundReason.value = ''
+    for (const key of Object.keys(refundQuantities)) delete refundQuantities[Number(key)]
+    for (const key of Object.keys(refundRemaining)) delete refundRemaining[Number(key)]
+
+    const remaining = await remainingQuantities(sale)
+    for (const item of sale.items) {
+      refundRemaining[item.productId] = remaining.get(item.productId) ?? 0
+      refundQuantities[item.productId] = 0
+    }
+
+    refundDialogOpen.value = true
+  }
+
+  function closeRefundDialog () {
+    refundDialogOpen.value = false
+    refundSale.value = null
+  }
+
+  async function confirmVoidSale () {
+    if (!refundSale.value) return
+
+    refundLoading.value = true
+    const result = await voidSale(refundSale.value, refundReason.value || 'Voided')
+    refundLoading.value = false
+
+    if (result.ok) {
+      refundSale.value.status = 'voided'
+      toast.show(result.message)
+      closeRefundDialog()
+    } else {
+      toast.show(result.message, 'error')
+    }
+  }
+
+  async function confirmRefundItems () {
+    if (!refundSale.value) return
+
+    const lines: RefundItem[] = Object.entries(refundQuantities)
+      .map(([productId, quantity]) => ({ productId: Number(productId), quantity }))
+      .filter(line => line.quantity > 0)
+
+    refundLoading.value = true
+    const result = await refundSaleItems(refundSale.value, lines, refundReason.value || 'Refund')
+    refundLoading.value = false
+
+    if (result.ok) {
+      if (result.status) refundSale.value.status = result.status
+      toast.show(result.message)
+      closeRefundDialog()
+    } else {
+      toast.show(result.message, 'error')
+    }
+  }
+
   onMounted(async () => {
-    const [saleRows] = await Promise.all([getSales(), branchStore.loadBranches()])
-    sales.value = saleRows
+    const [profileResult] = await Promise.all([
+      cachedFetch('profiles', getProfiles, onlineState.isOnline),
+      loadSales(),
+      branchStore.loadBranches(),
+    ])
+    profiles.value = profileResult.data
   })
 </script>
 

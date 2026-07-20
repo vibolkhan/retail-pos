@@ -30,6 +30,7 @@
                   <th>Product</th>
                   <th class="text-center">Quantity</th>
                   <th class="text-right">Unit Price</th>
+                  <th class="text-right">Discount</th>
                   <th class="text-right">Subtotal</th>
                   <th class="text-right">Action</th>
                 </tr>
@@ -96,9 +97,23 @@
                     {{ formatCurrency(item.unitPrice) }}
                   </td>
 
+                  <td class="text-right">
+                    <v-text-field
+                      density="compact"
+                      hide-details
+                      :min="0"
+                      :model-value="item.discount || 0"
+                      prefix="$"
+                      style="width: 110px; margin-left: auto"
+                      type="number"
+                      variant="outlined"
+                      @update:model-value="value => handleSetLineDiscount(item.productId, value)"
+                    />
+                  </td>
+
                   <td class="price-mono text-right">
                     <strong>
-                      {{ formatCurrency(item.unitPrice * item.quantity) }}
+                      {{ formatCurrency(item.unitPrice * item.quantity - (item.discount || 0)) }}
                     </strong>
                   </td>
 
@@ -130,8 +145,16 @@
             <strong class="price-mono">{{ formatCurrency(subtotal) }}</strong>
           </div>
 
+          <div v-if="lineDiscountTotal > 0" class="summary-line">
+            <span>Item discounts</span>
+
+            <strong class="price-mono text-error">
+              -{{ formatCurrency(lineDiscountTotal) }}
+            </strong>
+          </div>
+
           <div class="summary-line">
-            <span>Discount</span>
+            <span>Additional discount</span>
 
             <strong class="price-mono text-error">
               -{{ formatCurrency(safeDiscount) }}
@@ -146,12 +169,59 @@
           <v-divider class="my-4" />
 
           <v-row density="comfortable">
+            <v-col cols="12">
+              <div class="d-flex ga-2 align-center">
+                <v-autocomplete
+                  v-model="selectedCustomerId"
+                  clearable
+                  density="comfortable"
+                  hide-details
+                  item-title="name"
+                  item-value="id"
+                  :items="customers"
+                  label="Customer (optional)"
+                  prepend-inner-icon="mdi-account-outline"
+                  rounded="lg"
+                  variant="outlined"
+                />
+
+                <v-tooltip :disabled="onlineState.isOnline" text="Reconnect to add a new customer">
+                  <template #activator="{ props }">
+                    <v-btn
+                      v-bind="props"
+                      :disabled="!onlineState.isOnline"
+                      icon="mdi-account-plus-outline"
+                      variant="tonal"
+                      @click="newCustomerDialog = true"
+                    />
+                  </template>
+                </v-tooltip>
+              </div>
+            </v-col>
+
+            <v-col v-if="selectedCustomer && settingsState.loyalty.enabled" cols="12">
+              <v-text-field
+                v-model.number="redeemPoints"
+                density="comfortable"
+                :disabled="maxRedeemablePoints(safeDiscount, safeTax) <= 0"
+                :hint="redeemHint"
+                label="Redeem loyalty points"
+                :max="maxRedeemablePoints(safeDiscount, safeTax)"
+                min="0"
+                persistent-hint
+                prepend-inner-icon="mdi-star-four-points-outline"
+                rounded="lg"
+                type="number"
+                variant="outlined"
+              />
+            </v-col>
+
             <v-col cols="12" sm="6">
               <v-text-field
                 v-model.number="discount"
                 density="comfortable"
                 hide-details
-                label="Discount"
+                label="Additional discount"
                 min="0"
                 prefix="$"
                 prepend-inner-icon="mdi-tag-minus-outline"
@@ -205,6 +275,14 @@
               <div class="price-mono text-h5 font-weight-bold text-primary">
                 {{ formatCurrency(grandTotal) }}
               </div>
+
+              <div v-if="secondaryTotal" class="price-mono text-caption text-medium-emphasis">
+                ≈ {{ secondaryTotal }}
+              </div>
+
+              <div v-if="pointsToEarn > 0" class="text-caption text-medium-emphasis">
+                Earns {{ pointsToEarn }} loyalty points
+              </div>
             </div>
 
             <v-icon color="primary" size="34">mdi-cash-check</v-icon>
@@ -241,18 +319,84 @@
 
     <ReceiptDialog v-model="receiptDialog" :sale="completedSale" />
 
+    <v-dialog v-model="newCustomerDialog" max-width="420">
+      <v-card>
+        <v-card-title class="receipt-title">
+          <span class="flex-grow-1">New customer</span>
+        </v-card-title>
+
+        <v-divider />
+
+        <v-card-text>
+          <v-text-field
+            v-model="newCustomerForm.name"
+            class="mb-3"
+            density="comfortable"
+            hide-details
+            label="Name"
+            variant="outlined"
+          />
+
+          <v-text-field
+            v-model="newCustomerForm.phone"
+            class="mb-3"
+            density="comfortable"
+            hide-details
+            label="Phone (optional)"
+            variant="outlined"
+          />
+
+          <v-text-field
+            v-model="newCustomerForm.email"
+            density="comfortable"
+            hide-details
+            label="Email (optional)"
+            variant="outlined"
+          />
+        </v-card-text>
+
+        <v-card-actions class="px-6 pb-5">
+          <v-spacer />
+          <v-btn variant="text" @click="newCustomerDialog = false"> Cancel </v-btn>
+
+          <v-btn
+            color="primary"
+            :disabled="!newCustomerForm.name.trim() || !onlineState.isOnline"
+            :loading="creatingCustomer"
+            variant="flat"
+            @click="saveNewCustomer"
+          >
+            Add
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <script lang="ts" setup>
-  import type { CartItem, PaymentMethod, Sale } from '@/types/pos'
-  import { computed, ref } from 'vue'
+  import type { CartItem, Customer, PaymentMethod, Sale } from '@/types/pos'
+  import { computed, onMounted, reactive, ref, watch } from 'vue'
   import ReceiptDialog from '@/components/ReceiptDialog.vue'
   import { useCart } from '@/composables/useCart'
+  import { cachedFetch } from '@/composables/useOfflineCache'
+  import { useOnline } from '@/composables/useOnline'
+  import { useSalesSyncQueue } from '@/composables/useSalesSyncQueue'
+  import { useSettings } from '@/composables/useSettings'
+  import { createCustomer, getCustomers } from '@/composables/useSupabase'
   import { useToast } from '@/composables/useToast'
-  import { formatCurrency } from '@/utils/currency'
+  import { formatCurrency, formatSecondaryCurrency } from '@/utils/currency'
 
   const toast = useToast()
+  const { state: settingsState } = useSettings()
+  const { state: onlineState } = useOnline()
+  const { flush, pendingCount } = useSalesSyncQueue()
+
+  const customers = ref<Customer[]>([])
+  const selectedCustomerId = ref<number | null>(null)
+  const newCustomerDialog = ref(false)
+  const newCustomerForm = reactive({ name: '', phone: '', email: '' })
+  const creatingCustomer = ref(false)
 
   const paymentMethods: PaymentMethod[] = [
     'Cash',
@@ -264,11 +408,15 @@
   const {
     cartItems,
     subtotal,
+    lineDiscountTotal,
     increaseQuantity,
     decreaseQuantity,
     setQuantity,
+    setLineDiscount,
     removeItem,
     checkout,
+    pointsRedemptionValue,
+    maxRedeemablePoints,
   } = useCart()
 
   const discount = ref(0)
@@ -277,23 +425,61 @@
   const receiptDialog = ref(false)
   const isCheckingOut = ref(false)
   const completedSale = ref<Sale | null>(null)
+  const redeemPoints = ref(0)
 
   const safeDiscount = computed(() => Math.max(0, Number(discount.value) || 0))
   const safeTax = computed(() => Math.max(0, Number(tax.value) || 0))
+
+  const selectedCustomer = computed(() =>
+    customers.value.find(customer => customer.id === selectedCustomerId.value) ?? null,
+  )
+
+  // Clamp whenever the cart, discount, tax, or customer changes so the
+  // field never displays a value checkout() would silently reduce anyway.
+  watch([selectedCustomer, safeDiscount, safeTax, subtotal, lineDiscountTotal], () => {
+    const max = maxRedeemablePoints(safeDiscount.value, safeTax.value)
+    const balance = selectedCustomer.value?.loyaltyPoints ?? 0
+    redeemPoints.value = Math.max(0, Math.min(redeemPoints.value, max, balance))
+  })
+
+  const redeemHint = computed(() => {
+    const balance = selectedCustomer.value?.loyaltyPoints ?? 0
+    const value = pointsRedemptionValue(redeemPoints.value)
+    return `${selectedCustomer.value?.name ?? 'Customer'} has ${balance} points${value > 0 ? ` — redeeming ${formatCurrency(value)} off` : ''}`
+  })
+
+  const redeemValue = computed(() => pointsRedemptionValue(redeemPoints.value))
 
   const totalItems = computed(() =>
     cartItems.value.reduce((total, item) => total + item.quantity, 0),
   )
 
   const grandTotal = computed(() => {
-    return Math.max(0, subtotal.value - safeDiscount.value + safeTax.value)
+    return Math.max(
+      0,
+      subtotal.value - lineDiscountTotal.value - safeDiscount.value - redeemValue.value + safeTax.value,
+    )
   })
+
+  const pointsToEarn = computed(() => {
+    if (!selectedCustomer.value || !settingsState.loyalty.enabled) return 0
+    return Math.floor(grandTotal.value * settingsState.loyalty.pointsPerCurrency)
+  })
+
+  const secondaryTotal = computed(() =>
+    formatSecondaryCurrency(
+      grandTotal.value,
+      settingsState.currency.secondary,
+      settingsState.currency.exchangeRate,
+    ),
+  )
 
   const hasAdjustments = computed(() => {
     return (
       safeDiscount.value > 0
       || safeTax.value > 0
       || paymentMethod.value !== 'Cash'
+      || redeemPoints.value > 0
     )
   })
 
@@ -309,6 +495,13 @@
 
   function uomLabel (item: CartItem) {
     return item.uom === 'batch' ? (item.batchUnit ?? 'batch') : 'item'
+  }
+
+  function handleSetLineDiscount (productId: number, value: string | number) {
+    const result = setLineDiscount(productId, Number(value))
+    if (!result.ok) {
+      toast.show(result.message, 'warning')
+    }
   }
 
   function handleSetQuantity (productId: number, event: Event) {
@@ -327,6 +520,36 @@
     discount.value = 0
     tax.value = 0
     paymentMethod.value = 'Cash'
+    selectedCustomerId.value = null
+    redeemPoints.value = 0
+  }
+
+  async function saveNewCustomer () {
+    const name = newCustomerForm.name.trim()
+    if (!name) return
+
+    creatingCustomer.value = true
+    try {
+      const customer = await createCustomer({
+        name,
+        phone: newCustomerForm.phone.trim() || null,
+        email: newCustomerForm.email.trim() || null,
+      })
+      customers.value = [...customers.value, customer].toSorted((a, b) => a.name.localeCompare(b.name))
+      selectedCustomerId.value = customer.id
+      newCustomerForm.name = ''
+      newCustomerForm.phone = ''
+      newCustomerForm.email = ''
+      newCustomerDialog.value = false
+      toast.show(`${customer.name} added.`)
+    } catch (error) {
+      toast.show(
+        error instanceof Error ? error.message : 'Unable to add customer.',
+        'error',
+      )
+    } finally {
+      creatingCustomer.value = false
+    }
   }
 
   function paymentColor (method: PaymentMethod) {
@@ -348,6 +571,8 @@
         safeDiscount.value,
         safeTax.value,
         paymentMethod.value,
+        selectedCustomerId.value,
+        redeemPoints.value,
       )
 
       if (!result.ok) {
@@ -358,11 +583,30 @@
       completedSale.value = result.sale ?? null
       receiptDialog.value = true
       resetAdjustments()
-      toast.show(result.message, 'success')
+      toast.show(result.message, result.queued ? 'warning' : 'success')
+
+      // Patch the balance in place instead of refetching the whole customer
+      // table — checkout() already tells us the resulting balance, so a
+      // repeat sale for the same customer sees points earned/redeemed just now.
+      if (result.sale?.customerId != null && result.loyaltyBalance != null) {
+        const index = customers.value.findIndex(customer => customer.id === result.sale!.customerId)
+        if (index !== -1) {
+          customers.value[index] = { ...customers.value[index], loyaltyPoints: result.loyaltyBalance }
+        }
+      }
     } finally {
       isCheckingOut.value = false
     }
   }
+
+  onMounted(async () => {
+    const result = await cachedFetch('customers', getCustomers, onlineState.isOnline)
+    customers.value = result.data
+    // Opportunistic: syncs promptly if there's already pending offline sales
+    // and we're actually online, rather than waiting for App.vue's own
+    // interval/online-event triggers.
+    if (onlineState.isOnline && pendingCount.value > 0) void flush()
+  })
 </script>
 
 <style scoped>

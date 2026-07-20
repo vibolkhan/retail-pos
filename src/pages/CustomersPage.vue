@@ -1,5 +1,9 @@
 <template>
   <v-container class="py-6" fluid>
+    <v-alert v-if="offlineNotice" class="mb-4" type="info" variant="tonal">
+      {{ offlineNotice }}
+    </v-alert>
+
     <v-row class="mb-4">
       <v-col cols="12" md="6">
         <v-text-field
@@ -220,6 +224,8 @@
   import type { Customer, LoyaltyTransaction, Sale } from '@/types/pos'
   import { computed, onMounted, reactive, ref } from 'vue'
   import ReceiptDialog from '@/components/ReceiptDialog.vue'
+  import { cachedFetch } from '@/composables/useOfflineCache'
+  import { useOnline } from '@/composables/useOnline'
   import {
     addLoyaltyTransaction,
     adjustLoyaltyPoints,
@@ -233,11 +239,13 @@
 
   const toast = useToast()
   const authStore = useAuthStore()
+  const { state: onlineState } = useOnline()
 
   const customers = ref<Customer[]>([])
   const sales = ref<Sale[]>([])
   const loading = ref(true)
   const search = ref('')
+  const offlineNotice = ref('')
 
   const historyDialogOpen = ref(false)
   const historyCustomer = ref<Customer | null>(null)
@@ -342,9 +350,17 @@
   onMounted(async () => {
     loading.value = true
     try {
-      const [customerRows, saleRows] = await Promise.all([getCustomers(), getSales()])
-      customers.value = customerRows
-      sales.value = saleRows
+      const [customerResult, salesResult] = await Promise.all([
+        cachedFetch('customers', getCustomers, onlineState.isOnline),
+        cachedFetch('sales:all', getSales, onlineState.isOnline),
+      ])
+      customers.value = customerResult.data
+      sales.value = salesResult.data
+      offlineNotice.value = customerResult.fromCache || salesResult.fromCache
+        ? 'Offline — showing cached customers. Adjusting points is disabled until reconnected.'
+        : ''
+    } catch (error) {
+      toast.show(error instanceof Error ? error.message : 'Unable to load customers.', 'error')
     } finally {
       loading.value = false
     }

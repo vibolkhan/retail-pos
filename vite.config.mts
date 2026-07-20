@@ -67,12 +67,18 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,woff2,png,svg,ico}'],
+        globPatterns: ['**/*.{js,css,html,woff,woff2,ttf,png,svg,ico}'],
         // Lets a cold, fully-offline reopen of any deep link (e.g. /inventory)
         // still resolve to the cached app shell, mirroring vercel.json's SPA
         // rewrite (which obviously can't fire with no network at all).
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
+        // @mdi/font's own CSS appends a literal "?v=7.4.47" cache-busting
+        // query string to its font URLs. That query string isn't part of the
+        // precache manifest, so without this, Workbox's default precache
+        // matching (which only ignores utm_*/fbclid) treats every icon-font
+        // request as a miss and it 404s offline.
+        ignoreURLParametersMatching: [/^v$/],
         // Deliberately no runtimeCaching entries: every Supabase call is a
         // cross-origin request straight to the Supabase project URL (no
         // same-origin /api routes exist in prod — the dev-only proxy above

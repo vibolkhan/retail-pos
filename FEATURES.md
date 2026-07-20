@@ -12,6 +12,7 @@ A plain-language overview of the app's capabilities and current limitations, for
 - At-a-glance numbers: today's sales count, today's revenue, what's currently sitting in the cart.
 - Charts: a 7-day revenue trend, stock levels by category, and an overall activity snapshot.
 - Everything shown is for whichever store branch is currently selected.
+- Still viewable offline, from the last time it loaded (see "Works offline" below).
 
 ### Checkout / point of sale
 - A product grid with photos, prices, and live stock counts. Staff can search by name, product code, or scan-style barcode entry, and filter by category.
@@ -27,7 +28,7 @@ A plain-language overview of the app's capabilities and current limitations, for
 - The app can be installed like a real app (from the browser's "install"/"add to home screen" prompt) and keeps working with no internet connection at all — even if the browser is fully closed and reopened while offline.
 - Checkout keeps working with no connection: staff can browse the product catalog (from the last time it loaded), add items to cart, and complete a sale. The sale is recorded locally and syncs automatically the moment the connection comes back — nothing is lost, and staff don't need to do anything to trigger the sync.
 - A small badge in the navigation shows how many sales are still waiting to sync, so it's obvious at a glance if a device has a backlog.
-- Recently-viewed sales history and inventory are also still viewable offline (from the last time they loaded), though they can't be edited until the connection returns — inventory changes, refunds/voids, settings, and adding new customers all require an active connection.
+- Recently-viewed dashboard, sales history, inventory, and customer data are also still viewable offline (from the last time they loaded), with an on-screen notice that it's cached data — though they can't be edited until the connection returns — inventory changes, refunds/voids, settings, and adding new customers or adjusting their loyalty points all require an active connection.
 - Staff stay logged in even if a device is offline when the app is reopened — it no longer requires a live connection just to confirm who's logged in.
 
 ### Refunds and voids (admin/manager only)
@@ -39,6 +40,7 @@ A plain-language overview of the app's capabilities and current limitations, for
 - A simple customer directory (name, phone, email) built from names collected at checkout, or added directly.
 - Each customer's page shows how many orders they've placed and their total spend, with a link to their order history.
 - **Loyalty points**: every customer carries a points balance. Each sale attached to them earns points on the amount paid, and staff can redeem existing points for a discount right at checkout. A customer's page shows a full points ledger (every earn/redeem/adjustment, with the running balance), and an admin/manager can manually add or deduct points with a note (e.g. a goodwill credit). Voiding or refunding a sale automatically claws back points it earned and restores points it spent, proportional to how much of the sale was refunded.
+- The customer directory and order data are still viewable offline (from the last time they loaded), with an on-screen notice that it's cached data — adjusting points requires an active connection.
 
 ### Inventory management (admin/manager only)
 - Full product list with photo, code, barcode, category, price, and per-branch stock, with color-coded low/medium/healthy stock indicators.

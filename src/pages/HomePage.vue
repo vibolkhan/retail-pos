@@ -35,6 +35,10 @@
       {{ errorMessage }}
     </v-alert>
 
+    <v-alert v-if="offlineNotice" class="mb-4" type="info" variant="tonal">
+      {{ offlineNotice }}
+    </v-alert>
+
     <v-row class="mb-2">
       <v-col cols="6" md="3">
         <v-card class="kpi-tile" rounded="lg" variant="flat">
@@ -149,6 +153,8 @@
   import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
   import { useTheme } from 'vuetify'
   import { useCart } from '@/composables/useCart'
+  import { cachedFetch } from '@/composables/useOfflineCache'
+  import { useOnline } from '@/composables/useOnline'
   import { getProducts, getSales } from '@/composables/useSupabase'
   import { useBranchStore } from '@/stores/branch'
   import { formatCurrency } from '@/utils/currency'
@@ -157,6 +163,7 @@
 
   const theme = useTheme()
   const branchStore = useBranchStore()
+  const { state: onlineState } = useOnline()
   const products = ref<Product[]>([])
   const allSales = ref<Sale[]>([])
   // Dashboard is scoped to the active branch
@@ -164,6 +171,7 @@
     allSales.value.filter(sale => sale.branchId === branchStore.activeBranchId),
   )
   const errorMessage = ref('')
+  const offlineNotice = ref('')
   const flowChartRef = ref<HTMLCanvasElement | null>(null)
   const revenueChartRef = ref<HTMLCanvasElement | null>(null)
   const inventoryChartRef = ref<HTMLCanvasElement | null>(null)
@@ -384,13 +392,18 @@
       if (branchStore.activeBranchId == null) {
         throw new Error('No branch available.')
       }
-      const [productData, saleData] = await Promise.all([
-        getProducts(branchStore.activeBranchId),
-        getSales(),
+      const branchId = branchStore.activeBranchId
+      const [productResult, salesResult] = await Promise.all([
+        cachedFetch(`products:${branchId}`, () => getProducts(branchId), onlineState.isOnline),
+        cachedFetch('sales:all', getSales, onlineState.isOnline),
       ])
 
-      products.value = productData
-      allSales.value = saleData
+      products.value = productResult.data
+      allSales.value = salesResult.data
+      offlineNotice.value = productResult.fromCache || salesResult.fromCache
+        ? 'Offline — showing cached dashboard data. It will refresh automatically once you\'re back online.'
+        : ''
+      errorMessage.value = ''
       await nextTick()
       buildCharts()
     } catch (error) {

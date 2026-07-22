@@ -17,7 +17,7 @@
             size="x-small"
             variant="tonal"
           >
-            {{ product.batchSize }} units / {{ product.batchUnit ?? 'batch' }}
+            {{ product.batchSize }} units / {{ product.batchUnitName ?? 'batch' }}
           </v-chip>
         </div>
 
@@ -28,7 +28,7 @@
 
       <v-card-text class="qty-dialog-body">
         <div class="qty-price-row">
-          <span class="text-medium-emphasis text-body-2">Price per {{ product.batchUnit ?? 'batch' }}</span>
+          <span class="text-medium-emphasis text-body-2">Price per {{ product.batchUnitName ?? 'batch' }}</span>
           <strong class="price-mono text-wholesale">{{ formatCurrency(product.batchPrice ?? 0) }}</strong>
         </div>
 
@@ -86,7 +86,7 @@
         <div class="qty-summary">
           <div>
             <div class="text-caption text-medium-emphasis">
-              {{ product.stock }} {{ product.batchUnit ?? 'batch' }} in stock
+              {{ product.stock }} {{ product.batchUnitName ?? 'batch' }} in stock
             </div>
 
             <div class="text-caption text-medium-emphasis">Line total</div>
@@ -173,7 +173,7 @@
       return
     }
     if (qty > props.product.stock) {
-      errorMessage.value = `Only ${props.product.stock} ${props.product.batchUnit ?? 'batch'} available.`
+      errorMessage.value = `Only ${props.product.stock} ${props.product.batchUnitName ?? 'batch'} available.`
       triggerShake()
       return
     }

@@ -5,7 +5,7 @@ import type {
 } from '@/composables/useSupabase'
 // src/composables/useInventoryExcel.ts
 // Export/import product inventory (with photos) as an .xlsx workbook.
-import type { Branch, Category } from '@/types/pos'
+import type { BatchUnit, Branch, Category } from '@/types/pos'
 import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 import {
@@ -131,7 +131,7 @@ export async function exportInventoryToExcel (
       price: product.price,
       sellableRetail: product.sellableRetail,
       sellableWholesale: product.sellableWholesale,
-      batchUnit: product.batchUnit ?? '',
+      batchUnit: product.batchUnitName ?? '',
       batchSize: product.batchSize ?? '',
       batchPrice: product.batchPrice ?? '',
       ...Object.fromEntries(
@@ -189,12 +189,13 @@ function parseBoolean (text: string, fallback: boolean): boolean {
 
 interface ImportContext {
   categories: Category[]
+  batchUnits: BatchUnit[]
   branches: Branch[]
   existingProducts: InventoryProduct[]
 }
 
 interface BatchFields {
-  batchUnit: string | null
+  batchUnitId: number | null
   batchSize: number | null
   batchPrice: number | null
 }
@@ -204,17 +205,21 @@ function parseBatchFields (
   batchUnitText: string,
   batchSizeText: string,
   batchPriceText: string,
+  batchUnitIdByName: Map<string, number>,
 ): BatchFields {
   if (!sellableWholesale) {
-    return { batchUnit: null, batchSize: null, batchPrice: null }
+    return { batchUnitId: null, batchSize: null, batchPrice: null }
   }
 
-  const batchUnit = batchUnitText || null
   const batchSize = batchSizeText ? Number(batchSizeText) : null
   const batchPrice = batchPriceText ? Number(batchPriceText) : null
 
-  if (!batchUnit) {
+  if (!batchUnitText) {
     throw new Error('Batch Unit is required when Sellable Wholesale is true.')
+  }
+  const batchUnitId = batchUnitIdByName.get(batchUnitText.trim().toLowerCase())
+  if (!batchUnitId) {
+    throw new Error(`Unknown batch unit "${batchUnitText}".`)
   }
   if (batchSize === null || !Number.isInteger(batchSize) || batchSize < 1) {
     throw new Error('Batch Size must be a whole number of at least 1.')
@@ -223,7 +228,7 @@ function parseBatchFields (
     throw new Error('Batch Price must be a non-negative number.')
   }
 
-  return { batchUnit, batchSize, batchPrice }
+  return { batchUnitId, batchSize, batchPrice }
 }
 
 function parseRowStocks (
@@ -311,7 +316,7 @@ async function normalizeNamespacedWorkbook (buffer: ArrayBuffer): Promise<ArrayB
 
 export async function importInventoryFromExcel (
   file: File,
-  { categories, branches, existingProducts }: ImportContext,
+  { categories, batchUnits, branches, existingProducts }: ImportContext,
 ): Promise<ImportSummary> {
   const workbook = new ExcelJS.Workbook()
   const rawBuffer = await file.arrayBuffer()
@@ -359,6 +364,9 @@ export async function importInventoryFromExcel (
 
   const categoryIdByName = new Map(
     categories.map(category => [category.name.trim().toLowerCase(), category.id]),
+  )
+  const batchUnitIdByName = new Map(
+    batchUnits.map(batchUnit => [batchUnit.name.trim().toLowerCase(), batchUnit.id]),
   )
   const existingByCode = new Map(
     existingProducts.map(product => [product.code.trim().toLowerCase(), product]),
@@ -412,11 +420,12 @@ export async function importInventoryFromExcel (
         throw new Error('At least one of Sellable Retail / Sellable Wholesale must be true.')
       }
 
-      const { batchUnit, batchSize, batchPrice } = parseBatchFields(
+      const { batchUnitId, batchSize, batchPrice } = parseBatchFields(
         sellableWholesale,
         text(row, 'Batch Unit'),
         text(row, 'Batch Size'),
         text(row, 'Batch Price'),
+        batchUnitIdByName,
       )
 
       const existing = existingByCode.get(code.trim().toLowerCase())
@@ -429,7 +438,7 @@ export async function importInventoryFromExcel (
         barcode,
         categoryId,
         price,
-        batchUnit,
+        batchUnitId,
         batchSize,
         batchPrice,
         sellableRetail,

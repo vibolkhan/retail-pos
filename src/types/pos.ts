@@ -3,6 +3,15 @@ export interface Category {
   name: string
 }
 
+// Wholesale batch preset (e.g. name "Case", unit 12) — configured on the
+// Configuration > Batch Unit page and referenced by Product.batchUnitId.
+// unit is the number of retail units that make up one batch of this preset.
+export interface BatchUnit {
+  id: number
+  name: string
+  unit: number
+}
+
 export type BranchType = 'retail' | 'wholesale'
 
 export interface Branch {
@@ -12,7 +21,7 @@ export interface Branch {
 }
 
 // Unit of measure a line item is sold in. Retail sells units, wholesale sells batches
-// (the batch's real-world unit name lives in Product.batchUnit / CartItem.batchUnit).
+// (the batch's real-world unit name lives in Product.batchUnitId / CartItem.batchUnit).
 export type Uom = 'unit' | 'batch'
 
 export interface Product {
@@ -24,8 +33,15 @@ export interface Product {
   categoryName?: string
   price: number
   // Wholesale batch pricing; null when the product has no batch defined.
-  // batchUnit is the real-world unit name (e.g. "Case", "Box", "Pack").
-  batchUnit: string | null
+  // batchUnitId is a FK into batch_units (Configuration > Batch Unit).
+  // batchUnitName (e.g. "Case") and batchUnitUnit (e.g. 12, the number of
+  // retail units per batch) are joined client-side, like categoryName
+  // above, and are never persisted. batchUnitName is what displays as the
+  // unit label; batchUnitUnit drives the batch price calc and the
+  // retail-stock-vs-batch-quantity validation.
+  batchUnitId: number | null
+  batchUnitName?: string
+  batchUnitUnit?: number
   batchSize: number | null
   batchPrice: number | null
   // Whether this product may be sold through each channel, independent of
@@ -151,4 +167,53 @@ export interface Refund {
   reason: string
   refundedBy?: string | null
   createdAt: string
+}
+
+// Purchase supplier — back-office master data, admin/manager-only writes
+// (Configuration > Supplier), unlike customers which any authenticated
+// user can quick-add at checkout.
+export interface Supplier {
+  id: number
+  name: string
+  phone?: string | null
+  email?: string | null
+  createdAt?: string
+}
+
+// One received/voided line of a purchase. previousCost is the branch_stock
+// row's cost immediately before this line was applied — captured at
+// receive time by receive_purchase_stock() so void_purchase_stock() can
+// restore it exactly. Cost restoration on void isn't order-independent if
+// a newer purchase has since touched the same product/branch — see
+// usePurchases.ts.
+export interface PurchaseItem {
+  productId: number
+  quantity: number
+  unitCost: number
+  previousCost: number | null
+  subtotal: number
+}
+
+export type PurchaseStatus = 'completed' | 'voided'
+
+// A stock-receiving event: quantity + cost of goods received from a
+// supplier into a branch. Cost of goods lives here and on branch_stock —
+// never on Product, which stays pure master data.
+export interface Purchase {
+  id: string
+  date: string
+  branchId: number
+  supplierId: number | null
+  items: PurchaseItem[]
+  subtotal: number
+  status: PurchaseStatus
+  createdBy?: string | null
+  createdAt: string
+  voidedAt?: string | null
+  voidedBy?: string | null
+  // Joined client-side for display; never persisted
+  branchName?: string
+  supplierName?: string
+  createdByEmail?: string
+  voidedByEmail?: string
 }

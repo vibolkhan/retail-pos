@@ -72,7 +72,7 @@
           </span>
 
           <span v-if="wholesale" class="text-xs text-medium-emphasis">
-            / {{ product.batchUnit ?? 'batch' }} of {{ product.batchSize }}
+            / {{ product.batchUnitName ?? 'batch' }} of {{ product.batchSize }}
           </span>
         </div>
 
@@ -81,7 +81,7 @@
           class="text-xs font-medium"
           :class="product.stock <= 5 ? 'text-warning' : 'text-success'"
         >
-          ● {{ product.stock }}{{ wholesale ? ` ${product.batchUnit ?? 'batch'}` : '' }}
+          ● {{ product.stock }}{{ wholesale ? ` ${product.batchUnitName ?? 'batch'}` : '' }}
         </span>
       </div>
     </div>

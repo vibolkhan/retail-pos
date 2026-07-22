@@ -38,21 +38,6 @@
           </v-btn>
         </template>
       </v-tooltip>
-
-      <v-tooltip :disabled="onlineState.isOnline" text="Reconnect to create a product">
-        <template #activator="{ props }">
-          <v-btn
-            v-bind="props"
-            color="primary"
-            :disabled="!onlineState.isOnline"
-            prepend-icon="mdi-plus"
-            variant="flat"
-            @click="openCreateDialog"
-          >
-            Create Product
-          </v-btn>
-        </template>
-      </v-tooltip>
     </div>
 
     <v-alert v-if="offlineNotice" class="mb-4" type="info" variant="tonal">
@@ -78,11 +63,11 @@
 
       <v-col cols="12" md="3">
         <v-select
-          v-model="channelFilter"
+          v-model="visibilityFilter"
           density="comfortable"
           hide-details
-          :items="channelOptions"
-          label="Sales channel"
+          :items="visibilityOptions"
+          :label="`Visibility in ${branchStore.activeBranch?.name ?? activeType}`"
           prepend-inner-icon="mdi-eye"
           variant="outlined"
         />
@@ -140,60 +125,40 @@
         </v-chip>
       </template>
 
-      <template #item.price="{ item }">
-        <span class="price-mono">{{ formatCurrency(item.price) }}</span>
-      </template>
+      <template #item.priceCol="{ item }">
+        <template v-if="activeType === 'wholesale'">
+          <template v-if="item.batchPrice && item.batchSize">
+            <span class="price-mono">{{ formatCurrency(item.batchPrice) }}</span>
 
-      <template #item.batchPrice="{ item }">
-        <template v-if="item.batchPrice && item.batchSize">
-          <span class="price-mono">{{ formatCurrency(item.batchPrice) }}</span>
+            <div class="text-caption text-medium-emphasis">
+              {{ item.batchSize }} / {{ item.batchUnitName ?? 'batch' }}
+            </div>
+          </template>
 
-          <div class="text-caption text-medium-emphasis">
-            {{ item.batchSize }} / {{ item.batchUnit ?? 'batch' }}
-          </div>
+          <span v-else class="text-medium-emphasis">—</span>
         </template>
 
-        <span v-else class="text-medium-emphasis">—</span>
+        <span v-else class="price-mono">{{ formatCurrency(item.price) }}</span>
       </template>
 
-      <template #item.retailStock="{ item }">
+      <template #item.stockCol="{ item }">
         <v-chip
-          :color="stockColor(stockFor(item, 'retail'))"
+          :color="stockColor(stockFor(item, activeType))"
           size="small"
           variant="tonal"
         >
-          {{ stockFor(item, 'retail') }} in stock
+          {{ stockFor(item, activeType) }}{{ activeType === 'wholesale' && item.batchUnitName ? ` ${item.batchUnitName}` : ' in stock' }}
         </v-chip>
       </template>
 
-      <template #item.wholesaleStock="{ item }">
+      <template #item.sellableHere="{ item }">
         <v-chip
-          :color="stockColor(stockFor(item, 'wholesale'))"
+          :color="isSellableHere(item) ? (activeType === 'wholesale' ? 'wholesale' : 'primary') : 'grey'"
           size="small"
           variant="tonal"
         >
-          {{ stockFor(item, 'wholesale') }}{{ item.batchUnit ? ` ${item.batchUnit}` : '' }}
+          {{ isSellableHere(item) ? 'Sellable here' : 'Hidden here' }}
         </v-chip>
-      </template>
-
-      <template #item.channels="{ item }">
-        <div class="d-flex ga-1">
-          <v-chip
-            :color="item.sellableRetail ? 'primary' : 'grey'"
-            size="small"
-            variant="tonal"
-          >
-            Retail
-          </v-chip>
-
-          <v-chip
-            :color="item.sellableWholesale ? 'wholesale' : 'grey'"
-            size="small"
-            variant="tonal"
-          >
-            Wholesale
-          </v-chip>
-        </div>
       </template>
 
       <template #item.actions="{ item }">
@@ -231,17 +196,34 @@
             </template>
           </v-tooltip>
 
-          <v-tooltip :text="onlineState.isOnline ? 'Delete product' : 'Reconnect to delete this product'">
+          <v-tooltip v-if="isSellableHere(item)" :text="onlineState.isOnline ? `Remove from ${branchStore.activeBranch?.name ?? activeType} inventory` : 'Reconnect to edit this product'">
             <template #activator="{ props }">
               <v-btn
                 v-bind="props"
-                aria-label="Delete product"
+                aria-label="Remove from inventory"
                 color="error"
                 :disabled="!onlineState.isOnline"
-                icon="mdi-delete-outline"
+                icon="mdi-archive-remove-outline"
+                :loading="togglingSellableId === item.id"
                 size="small"
                 variant="text"
-                @click="openDeleteDialog(item)"
+                @click="openRemoveDialog(item)"
+              />
+            </template>
+          </v-tooltip>
+
+          <v-tooltip v-else :text="onlineState.isOnline ? `Add to ${branchStore.activeBranch?.name ?? activeType} inventory` : 'Reconnect to edit this product'">
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                aria-label="Add to inventory"
+                color="primary"
+                :disabled="!onlineState.isOnline"
+                icon="mdi-archive-arrow-up-outline"
+                :loading="togglingSellableId === item.id"
+                size="small"
+                variant="text"
+                @click="addToInventory(item)"
               />
             </template>
           </v-tooltip>
@@ -255,345 +237,48 @@
       </template>
     </v-data-table>
 
-    <v-dialog v-model="dialogOpen" max-width="840">
-      <v-card>
-        <v-form @submit.prevent="saveDialogProduct">
-          <v-card-title class="receipt-title">
-            <span class="flex-grow-1">{{ dialogTitle }}</span>
-            <v-spacer />
-            <v-btn icon="mdi-close" variant="text" @click="closeDialog" />
-          </v-card-title>
+    <ProductFormDialog
+      v-model="dialogOpen"
+      :batch-units="batchUnits"
+      :branches="branchStore.branches"
+      :categories="categories"
+      :product="editingProduct"
+      :show-details-section="false"
+      show-stock-section
+      :stock-by-branch="editingProduct?.stockByBranch"
+      @updated="onProductUpdated"
+    />
 
-          <v-divider />
-
-          <v-card-text class="form-dialog-body">
-            <section class="form-section">
-              <div class="form-section-header">
-                <v-icon icon="mdi-information-outline" size="18" />
-                <span>Product details</span>
-              </div>
-
-              <v-row>
-                <v-col class="d-flex justify-center" cols="12" md="4">
-                  <div
-                    class="image-dropzone"
-                    :class="{ 'has-image': imagePreviewUrl, 'is-dragover': isImageDragOver }"
-                    role="button"
-                    tabindex="0"
-                    @click="triggerFilePicker"
-                    @dragleave.prevent="isImageDragOver = false"
-                    @dragover.prevent="isImageDragOver = true"
-                    @drop.prevent="onImageDrop"
-                    @keydown.enter="triggerFilePicker"
-                  >
-                    <input
-                      ref="fileInputRef"
-                      accept="image/*"
-                      class="hidden"
-                      type="file"
-                      @change="onFileInputChange"
-                    >
-
-                    <template v-if="imagePreviewUrl">
-                      <v-img class="image-dropzone-preview" cover :src="imagePreviewUrl" />
-
-                      <div class="image-dropzone-overlay">
-                        <v-icon icon="mdi-image-edit-outline" size="24" />
-                        <span class="text-caption font-weight-medium">Change photo</span>
-                      </div>
-                    </template>
-
-                    <template v-else>
-                      <v-icon class="opacity-50" icon="mdi-tray-arrow-up" size="32" />
-
-                      <div class="text-caption font-weight-medium mt-2">
-                        Drag &amp; drop, or click to browse
-                      </div>
-
-                      <div class="text-caption text-medium-emphasis mt-1 px-2">
-                        PNG or JPG, cropped to a square
-                      </div>
-                    </template>
-                  </div>
-                </v-col>
-
-                <v-col cols="12" md="8">
-                  <v-row>
-                    <v-col cols="12">
-                      <v-text-field
-                        v-model="form.name"
-                        density="comfortable"
-                        label="Product name"
-                        variant="outlined"
-                      />
-                    </v-col>
-
-                    <v-col cols="6">
-                      <v-text-field
-                        v-model="form.code"
-                        density="comfortable"
-                        label="Code"
-                        variant="outlined"
-                      />
-                    </v-col>
-
-                    <v-col cols="6">
-                      <v-text-field
-                        v-model="form.barcode"
-                        density="comfortable"
-                        label="Barcode"
-                        variant="outlined"
-                      />
-                    </v-col>
-
-                    <v-col cols="12">
-                      <v-select
-                        v-model="form.categoryId"
-                        density="comfortable"
-                        item-title="name"
-                        item-value="id"
-                        :items="categories"
-                        label="Category"
-                        variant="outlined"
-                      />
-                    </v-col>
-                  </v-row>
-                </v-col>
-              </v-row>
-            </section>
-
-            <v-divider class="form-section-divider" />
-
-            <section class="form-section">
-              <div class="form-section-header">
-                <v-icon icon="mdi-storefront-outline" size="18" />
-                <span>Sales channels</span>
-              </div>
-
-              <v-row>
-                <v-col cols="12" md="6">
-                  <label class="channel-toggle" :class="{ 'is-active': form.sellableRetail }">
-                    <div>
-                      <div class="font-weight-medium">Retail shop</div>
-
-                      <div class="text-caption text-medium-emphasis">
-                        Sold by the unit to walk-in customers
-                      </div>
-                    </div>
-
-                    <v-switch
-                      v-model="form.sellableRetail"
-                      color="primary"
-                      hide-details
-                      inset
-                    />
-                  </label>
-                </v-col>
-
-                <v-col cols="12" md="6">
-                  <label class="channel-toggle" :class="{ 'is-active': form.sellableWholesale }">
-                    <div>
-                      <div class="font-weight-medium">Wholesale</div>
-
-                      <div class="text-caption text-medium-emphasis">
-                        Sold by the batch to bulk buyers
-                      </div>
-                    </div>
-
-                    <v-switch
-                      v-model="form.sellableWholesale"
-                      color="wholesale"
-                      hide-details
-                      inset
-                    />
-                  </label>
-                </v-col>
-              </v-row>
-            </section>
-
-            <v-divider class="form-section-divider" />
-
-            <section class="form-section">
-              <div class="form-section-header">
-                <v-icon icon="mdi-currency-usd" size="18" />
-                <span>Pricing</span>
-              </div>
-
-              <v-row>
-                <v-col cols="12" :md="form.sellableWholesale ? 4 : 6">
-                  <v-text-field
-                    v-model.number="form.price"
-                    density="comfortable"
-                    label="Unit price"
-                    min="0"
-                    prefix="$"
-                    type="number"
-                    variant="outlined"
-                  />
-                </v-col>
-              </v-row>
-
-              <v-expand-transition>
-                <v-row v-if="form.sellableWholesale">
-                  <v-col cols="12" md="4">
-                    <v-combobox
-                      v-model="form.batchUnit"
-                      density="comfortable"
-                      :items="batchUnitPresets"
-                      variant="outlined"
-                    >
-                      <template #label>
-                        Wholesale batch unit <span class="required-asterisk">*</span>
-                      </template>
-                    </v-combobox>
-                  </v-col>
-
-                  <v-col cols="12" md="4">
-                    <v-text-field
-                      v-model.number="form.batchSize"
-                      density="comfortable"
-                      min="1"
-                      type="number"
-                      variant="outlined"
-                    >
-                      <template #label>
-                        Units per batch <span class="required-asterisk">*</span>
-                      </template>
-                    </v-text-field>
-                  </v-col>
-
-                  <v-col cols="12" md="4">
-                    <v-text-field
-                      v-model.number="form.batchPrice"
-                      density="comfortable"
-                      min="0"
-                      prefix="$"
-                      type="number"
-                      variant="outlined"
-                    >
-                      <template #label>
-                        Batch price <span class="required-asterisk">*</span>
-                      </template>
-                    </v-text-field>
-                  </v-col>
-                </v-row>
-              </v-expand-transition>
-            </section>
-
-            <v-divider class="form-section-divider" />
-
-            <section class="form-section">
-              <div class="form-section-header">
-                <v-icon icon="mdi-warehouse" size="18" />
-                <span>Stock by branch</span>
-              </div>
-
-              <v-row>
-                <v-col
-                  v-for="branch in visibleStockBranches"
-                  :key="branch.id"
-                  cols="12"
-                  md="4"
-                >
-                  <v-text-field
-                    v-model.number="form.stocks[branch.id]"
-                    density="comfortable"
-                    :label="`${branch.name} stock${branch.type === 'wholesale' ? ` (${form.batchUnit || 'batch'})` : ' (units)'}`"
-                    min="0"
-                    :prepend-inner-icon="branch.type === 'wholesale' ? 'mdi-warehouse' : 'mdi-store-outline'"
-                    type="number"
-                    variant="outlined"
-                  />
-                </v-col>
-              </v-row>
-            </section>
-          </v-card-text>
-
-          <v-card-actions class="px-6 pb-5">
-            <v-spacer />
-
-            <v-btn variant="text" @click="closeDialog"> Cancel </v-btn>
-
-            <v-btn
-              color="primary"
-              :disabled="!onlineState.isOnline"
-              :loading="saving"
-              type="submit"
-              variant="flat"
-            >
-              {{ dialogMode === "create" ? "Create" : "Update" }}
-            </v-btn>
-          </v-card-actions>
-        </v-form>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog v-model="cropDialogOpen" max-width="480" persistent>
+    <v-dialog v-model="removeDialogOpen" max-width="420">
       <v-card>
         <v-card-title class="receipt-title">
-          <span class="flex-grow-1">Crop image</span>
-          <v-spacer />
-          <v-btn icon="mdi-close" variant="text" @click="cancelCrop" />
-        </v-card-title>
-
-        <v-divider />
-
-        <v-card-text class="pa-4">
-          <div class="cropper-wrap">
-            <cropper
-              v-if="cropSourceUrl"
-              ref="cropperRef"
-              class="cropper"
-              :src="cropSourceUrl"
-              :stencil-props="{ aspectRatio: 1 }"
-            />
-          </div>
-
-          <div class="text-caption text-medium-emphasis mt-2">
-            Drag to reposition, resize the square to crop.
-          </div>
-        </v-card-text>
-
-        <v-card-actions class="px-4 pb-4">
-          <v-spacer />
-
-          <v-btn variant="text" @click="cancelCrop"> Cancel </v-btn>
-
-          <v-btn color="primary" variant="flat" @click="applyCrop">
-            Apply crop
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <v-dialog v-model="deleteDialogOpen" max-width="420">
-      <v-card>
-        <v-card-title class="receipt-title">
-          <span class="flex-grow-1">Delete product</span>
+          <span class="flex-grow-1">Remove from inventory</span>
         </v-card-title>
 
         <v-divider />
 
         <v-card-text>
-          Are you sure you want to delete
-          <strong>{{ productToDelete?.name }}</strong>? It will disappear from
-          the POS and inventory list, but its stock records are kept — you
-          can restore it later from the "Deleted" status filter.
+          Are you sure you want to remove
+          <strong>{{ productToRemove?.name }}</strong> from
+          {{ branchStore.activeBranch?.name ?? activeType }}'s inventory? It
+          will disappear from POS at this branch only — the product itself,
+          its other branch's inventory, and its stock records are kept. You
+          can add it back here any time.
         </v-card-text>
 
         <v-card-actions class="px-6 pb-5">
           <v-spacer />
 
-          <v-btn variant="text" @click="closeDeleteDialog"> Cancel </v-btn>
+          <v-btn variant="text" @click="closeRemoveDialog"> Cancel </v-btn>
 
           <v-btn
             color="error"
             :disabled="!onlineState.isOnline"
-            :loading="deleting"
+            :loading="togglingSellableId === productToRemove?.id"
             variant="flat"
-            @click="confirmDeleteProduct"
+            @click="confirmRemoveFromInventory"
           >
-            Delete
+            Remove
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -642,14 +327,10 @@
 
 <script lang="ts" setup>
   import type { ImportSummary } from '@/composables/useInventoryExcel'
-  import type {
-    BranchStockInput,
-    InventoryProduct,
-    ProductInventoryPayload,
-  } from '@/composables/useSupabase'
-  import type { BranchType, Category } from '@/types/pos'
-  import { computed, onMounted, reactive, ref } from 'vue'
-  import { Cropper } from 'vue-advanced-cropper'
+  import type { BranchStockInput, InventoryProduct, ProductInventoryPayload } from '@/composables/useSupabase'
+  import type { BatchUnit, BranchType, Category, Product } from '@/types/pos'
+  import { computed, onMounted, ref } from 'vue'
+  import ProductFormDialog from '@/components/ProductFormDialog.vue'
   import {
     exportInventoryToExcel,
     importInventoryFromExcel,
@@ -657,107 +338,72 @@
   import { cachedFetch } from '@/composables/useOfflineCache'
   import { useOnline } from '@/composables/useOnline'
   import {
-    createProductInventory,
-    deleteProductInventory,
+    getBatchUnits,
     getCategories,
     getInventoryProducts,
     restoreProductInventory,
     updateProductInventory,
-    uploadProductImage,
   } from '@/composables/useSupabase'
   import { useToast } from '@/composables/useToast'
   import { useBranchStore } from '@/stores/branch'
   import { formatCurrency } from '@/utils/currency'
-  import 'vue-advanced-cropper/dist/style.css'
 
-  type DialogMode = 'create' | 'edit'
-  type ChannelFilter = 'all' | 'retail' | 'wholesale' | 'both' | 'hidden'
+  type VisibilityFilter = 'sellable' | 'hidden'
   type StatusFilter = 'active' | 'deleted'
-
-  interface ProductForm {
-    id: number | null
-    name: string
-    code: string
-    barcode: string
-    categoryId: number | null
-    price: number
-    batchUnit: string | null
-    batchSize: number | null
-    batchPrice: number | null
-    sellableRetail: boolean
-    sellableWholesale: boolean
-    stocks: Record<number, number>
-    image: string
-  }
-
-  const batchUnitPresets = ['Case', 'Box', 'Pack', 'Dozen', 'Bundle']
 
   const branchStore = useBranchStore()
   const toast = useToast()
   const { state: onlineState } = useOnline()
   const products = ref<InventoryProduct[]>([])
   const categories = ref<Category[]>([])
+  const batchUnits = ref<BatchUnit[]>([])
   const loading = ref(true)
   const offlineNotice = ref('')
-  const saving = ref(false)
   const search = ref('')
-  const channelFilter = ref<ChannelFilter>('all')
+  // Defaults to only what's actually sellable in the active branch — the
+  // list is scoped to the selected branch/channel by default, same as POS;
+  // "Hidden here" is only for finding a product to enable for this branch.
+  const visibilityFilter = ref<VisibilityFilter>('sellable')
   const statusFilter = ref<StatusFilter>('active')
   const errorMessage = ref('')
   const dialogOpen = ref(false)
-  const dialogMode = ref<DialogMode>('create')
-  const form = reactive<ProductForm>(emptyForm())
-  const deleteDialogOpen = ref(false)
-  const productToDelete = ref<InventoryProduct | null>(null)
-  const deleting = ref(false)
+  const editingProduct = ref<InventoryProduct | null>(null)
+  const removeDialogOpen = ref(false)
+  const productToRemove = ref<InventoryProduct | null>(null)
+  const togglingSellableId = ref<number | null>(null)
   const restoringId = ref<number | null>(null)
   const exporting = ref(false)
   const importing = ref(false)
   const importFileInputRef = ref<HTMLInputElement | null>(null)
   const importResultDialogOpen = ref(false)
   const importSummary = ref<ImportSummary | null>(null)
-  const imageFile = ref<File | null>(null)
-  const imagePreviewUrl = ref<string | null>(null)
-  const fileInputRef = ref<HTMLInputElement | null>(null)
-  const isImageDragOver = ref(false)
-  let imageObjectUrl: string | null = null
-  const cropDialogOpen = ref(false)
-  const cropSourceUrl = ref<string | null>(null)
-  const cropperRef = ref<InstanceType<typeof Cropper> | null>(null)
-  let cropSourceObjectUrl: string | null = null
-  const CROP_OUTPUT_SIZE = 640
 
-  const headers = [
+  // Inventory follows the same active-branch split as POS: everything here
+  // is scoped to whichever channel (retail/wholesale) is currently selected
+  // in the branch switcher, rather than showing both channels merged in one
+  // row/table.
+  const activeType = computed<BranchType>(() => branchStore.isWholesale ? 'wholesale' : 'retail')
+
+  const headers = computed(() => [
     { title: 'Product', value: 'product', sortable: false },
     { title: 'Category', value: 'categoryName', sortable: true },
-    { title: 'Unit Price', value: 'price', sortable: true },
-    { title: 'Batch Price', value: 'batchPrice', sortable: true },
-    { title: 'Retail Stock', value: 'retailStock', sortable: false },
-    { title: 'Wholesale Stock', value: 'wholesaleStock', sortable: false },
-    { title: 'Channels', value: 'channels', sortable: false },
+    { title: activeType.value === 'wholesale' ? 'Batch Price' : 'Unit Price', value: 'priceCol', sortable: true },
+    { title: activeType.value === 'wholesale' ? 'Wholesale Stock' : 'Retail Stock', value: 'stockCol', sortable: false },
+    { title: 'Visibility', value: 'sellableHere', sortable: false },
     { title: 'Action', value: 'actions', sortable: false, align: 'end' },
-  ] as const
-  const channelOptions = [
-    { title: 'All products', value: 'all' },
-    { title: 'Retail only', value: 'retail' },
-    { title: 'Wholesale only', value: 'wholesale' },
-    { title: 'Both channels', value: 'both' },
-    { title: 'Hidden (neither)', value: 'hidden' },
+  ] as const)
+  const visibilityOptions = [
+    { title: 'Sellable here', value: 'sellable' },
+    { title: 'Hidden here', value: 'hidden' },
   ]
   const statusOptions = [
     { title: 'Active', value: 'active' },
     { title: 'Deleted', value: 'deleted' },
   ]
 
-  const dialogTitle = computed(() =>
-    dialogMode.value === 'create' ? 'Create product' : 'Edit product',
-  )
-
-  const visibleStockBranches = computed(() =>
-    branchStore.branches.filter(branch =>
-      branch.type === 'wholesale' ? form.sellableWholesale : form.sellableRetail,
-    ),
-  )
+  function isSellableHere (product: Product) {
+    return activeType.value === 'wholesale' ? product.sellableWholesale : product.sellableRetail
+  }
 
   const filteredProducts = computed(() => {
     const query = search.value.trim().toLowerCase()
@@ -768,38 +414,16 @@
           value.toLowerCase().includes(query),
         )
         : true
-      const matchesChannel
-        = channelFilter.value === 'all'
-          || (channelFilter.value === 'retail' && product.sellableRetail && !product.sellableWholesale)
-          || (channelFilter.value === 'wholesale' && product.sellableWholesale && !product.sellableRetail)
-          || (channelFilter.value === 'both' && product.sellableRetail && product.sellableWholesale)
-          || (channelFilter.value === 'hidden' && !product.sellableRetail && !product.sellableWholesale)
+      const matchesVisibility
+        = visibilityFilter.value === 'sellable'
+          ? isSellableHere(product)
+          : !isSellableHere(product)
       const matchesStatus
         = statusFilter.value === 'active' ? !product.deletedAt : Boolean(product.deletedAt)
 
-      return matchesSearch && matchesChannel && matchesStatus
+      return matchesSearch && matchesVisibility && matchesStatus
     })
   })
-
-  function emptyForm (): ProductForm {
-    const stocks: Record<number, number> = {}
-    for (const branch of branchStore.branches) stocks[branch.id] = 0
-    return {
-      id: null,
-      name: '',
-      code: '',
-      barcode: '',
-      categoryId: null,
-      price: 0,
-      batchUnit: null,
-      batchSize: null,
-      batchPrice: null,
-      sellableRetail: true,
-      sellableWholesale: false,
-      stocks,
-      image: '',
-    }
-  }
 
   function branchIdOf (type: BranchType) {
     return branchStore.branches.find(b => b.type === type)?.id ?? -1
@@ -815,154 +439,118 @@
     return 'success'
   }
 
-  function closeCropDialog () {
-    cropDialogOpen.value = false
-    if (cropSourceObjectUrl) {
-      URL.revokeObjectURL(cropSourceObjectUrl)
-      cropSourceObjectUrl = null
-    }
-    cropSourceUrl.value = null
-  }
-
-  function resetImageState (initialUrl: string | null = null) {
-    if (imageObjectUrl) {
-      URL.revokeObjectURL(imageObjectUrl)
-      imageObjectUrl = null
-    }
-    imageFile.value = null
-    imagePreviewUrl.value = initialUrl
-    closeCropDialog()
-  }
-
-  // Picking/dropping a file only stages the raw file – the actual image
-  // comes from the crop dialog once the user confirms a selection
-  function handleImageFile (file: File | null) {
-    if (!file) return
-
-    if (cropSourceObjectUrl) {
-      URL.revokeObjectURL(cropSourceObjectUrl)
-    }
-    cropSourceObjectUrl = URL.createObjectURL(file)
-    cropSourceUrl.value = cropSourceObjectUrl
-    cropDialogOpen.value = true
-  }
-
-  function triggerFilePicker () {
-    fileInputRef.value?.click()
-  }
-
-  function onFileInputChange (event: Event) {
-    const input = event.target as HTMLInputElement
-    handleImageFile(input.files?.[0] ?? null)
-    input.value = ''
-  }
-
-  function onImageDrop (event: DragEvent) {
-    isImageDragOver.value = false
-    handleImageFile(event.dataTransfer?.files?.[0] ?? null)
-  }
-
-  function cancelCrop () {
-    closeCropDialog()
-  }
-
-  async function applyCrop () {
-    const result = cropperRef.value?.getResult()
-    if (!result?.canvas) return
-
-    const outputCanvas = document.createElement('canvas')
-    outputCanvas.width = CROP_OUTPUT_SIZE
-    outputCanvas.height = CROP_OUTPUT_SIZE
-    const context = outputCanvas.getContext('2d')
-    if (!context) return
-    context.drawImage(result.canvas, 0, 0, CROP_OUTPUT_SIZE, CROP_OUTPUT_SIZE)
-
-    const blob = await new Promise<Blob | null>(resolve =>
-      outputCanvas.toBlob(resolve, 'image/jpeg', 0.9),
-    )
-    if (!blob) {
-      toast.show('Unable to process the cropped image.', 'error')
-      return
-    }
-
-    if (imageObjectUrl) {
-      URL.revokeObjectURL(imageObjectUrl)
-    }
-    imageFile.value = new File([blob], 'product-image.jpg', { type: 'image/jpeg' })
-    imageObjectUrl = URL.createObjectURL(blob)
-    imagePreviewUrl.value = imageObjectUrl
-
-    closeCropDialog()
-  }
-
-  function closeDialog () {
-    dialogOpen.value = false
-    resetImageState()
-  }
-
-  function openCreateDialog () {
-    dialogMode.value = 'create'
-    Object.assign(form, emptyForm())
-    resetImageState()
-    dialogOpen.value = true
-  }
-
   function openEditDialog (product: InventoryProduct) {
-    dialogMode.value = 'edit'
-    const stocks: Record<number, number> = {}
-    for (const branch of branchStore.branches) {
-      stocks[branch.id] = product.stockByBranch[branch.id] ?? 0
-    }
-    Object.assign(form, {
-      id: product.id,
-      name: product.name,
-      code: product.code,
-      barcode: product.barcode,
-      categoryId: product.categoryId,
-      price: product.price,
-      batchUnit: product.batchUnit,
-      batchSize: product.batchSize,
-      batchPrice: product.batchPrice,
-      sellableRetail: product.sellableRetail,
-      sellableWholesale: product.sellableWholesale,
-      stocks,
-      image: product.image,
-    })
-    resetImageState(product.image || null)
+    editingProduct.value = product
     dialogOpen.value = true
   }
 
-  function openDeleteDialog (product: InventoryProduct) {
-    productToDelete.value = product
-    deleteDialogOpen.value = true
+  // Patches the newly created/updated product into the local list with the
+  // same categoryName/batchUnitName/batchUnitUnit client-side joins every
+  // other product in `products` already carries. costByBranch is preserved
+  // from the existing row on update (editing master data never touches
+  // cost) and starts empty for a genuinely new product.
+  function enrichProduct (
+    product: Product,
+    stocks: BranchStockInput[],
+    costByBranch: Record<number, number | null>,
+  ): InventoryProduct {
+    const categoryName = categories.value.find(c => c.id === product.categoryId)?.name ?? ''
+    const matchedBatchUnit = batchUnits.value.find(bu => bu.id === product.batchUnitId)
+    const stockByBranch: Record<number, number> = {}
+    for (const { branchId, stock } of stocks) stockByBranch[branchId] = stock
+    return {
+      ...product,
+      categoryName,
+      batchUnitName: matchedBatchUnit?.name,
+      batchUnitUnit: matchedBatchUnit?.unit,
+      stock: 0,
+      stockByBranch,
+      costByBranch,
+    }
   }
 
-  function closeDeleteDialog () {
-    deleteDialogOpen.value = false
-    productToDelete.value = null
+  function onProductUpdated (product: Product, stocks: BranchStockInput[]) {
+    const index = products.value.findIndex(item => item.id === product.id)
+    if (index !== -1) {
+      products.value[index] = enrichProduct(product, stocks, products.value[index].costByBranch)
+    }
   }
 
-  async function confirmDeleteProduct () {
-    if (!productToDelete.value) return
+  function buildInventoryPayload (item: InventoryProduct): ProductInventoryPayload {
+    return {
+      name: item.name,
+      code: item.code,
+      barcode: item.barcode,
+      categoryId: item.categoryId,
+      price: item.price,
+      batchUnitId: item.batchUnitId,
+      batchSize: item.batchSize,
+      batchPrice: item.batchPrice,
+      sellableRetail: item.sellableRetail,
+      sellableWholesale: item.sellableWholesale,
+      image: item.image,
+    }
+  }
 
-    deleting.value = true
+  // "Delete"/"Restore" here only ever flips the sellable flag for the
+  // active branch's channel — never the product row's deletedAt — so
+  // removing a product from one branch's inventory leaves it, its other
+  // branch's inventory, and its stock records untouched.
+  async function setSellableForActiveBranch (item: InventoryProduct, value: boolean): Promise<boolean> {
+    togglingSellableId.value = item.id
+    const payload = buildInventoryPayload(item)
+    if (activeType.value === 'wholesale') payload.sellableWholesale = value
+    else payload.sellableRetail = value
 
     try {
-      await deleteProductInventory(productToDelete.value.id)
-      const deleted = products.value.find(item => item.id === productToDelete.value?.id)
-      if (deleted) deleted.deletedAt = new Date().toISOString()
-      toast.show(`${productToDelete.value.name} deleted.`)
-      closeDeleteDialog()
+      await updateProductInventory({ id: item.id, ...payload }, [])
+      const target = products.value.find(p => p.id === item.id)
+      if (target) {
+        if (activeType.value === 'wholesale') target.sellableWholesale = value
+        else target.sellableRetail = value
+      }
+      return true
     } catch (error) {
       toast.show(
-        error instanceof Error ? error.message : 'Unable to delete product.',
+        error instanceof Error ? error.message : 'Unable to update inventory.',
         'error',
       )
+      return false
     } finally {
-      deleting.value = false
+      togglingSellableId.value = null
     }
   }
 
+  function openRemoveDialog (product: InventoryProduct) {
+    productToRemove.value = product
+    removeDialogOpen.value = true
+  }
+
+  function closeRemoveDialog () {
+    removeDialogOpen.value = false
+    productToRemove.value = null
+  }
+
+  async function confirmRemoveFromInventory () {
+    if (!productToRemove.value) return
+    const { name } = productToRemove.value
+    const ok = await setSellableForActiveBranch(productToRemove.value, false)
+    if (ok) {
+      toast.show(`${name} removed from ${branchStore.activeBranch?.name ?? activeType.value} inventory.`)
+      closeRemoveDialog()
+    }
+  }
+
+  async function addToInventory (product: InventoryProduct) {
+    const ok = await setSellableForActiveBranch(product, true)
+    if (ok) {
+      toast.show(`${product.name} added to ${branchStore.activeBranch?.name ?? activeType.value} inventory.`)
+    }
+  }
+
+  // Global restore — only relevant to the rare, fully-soft-deleted product
+  // (Status filter: "Deleted"), a legacy state no longer reachable from
+  // this page's own Delete action above.
   async function restoreProduct (product: InventoryProduct) {
     restoringId.value = product.id
     try {
@@ -1009,6 +597,7 @@
     try {
       const summary = await importInventoryFromExcel(file, {
         categories: categories.value,
+        batchUnits: batchUnits.value,
         branches: branchStore.branches,
         existingProducts: products.value,
       })
@@ -1031,116 +620,23 @@
     }
   }
 
-  interface PayloadWithStocks {
-    payload: ProductInventoryPayload
-    stocks: BranchStockInput[]
-  }
-
-  function buildPayload (): PayloadWithStocks | null {
-    const categoryId = Number(form.categoryId)
-    const price = Number(form.price)
-    // Empty number fields come back as '' or null – normalize to null
-    const batchUnit = typeof form.batchUnit === 'string' && form.batchUnit.trim()
-      ? form.batchUnit.trim()
-      : null
-    const batchSize = form.batchSize === null || (form.batchSize as unknown) === ''
-      ? null
-      : Number(form.batchSize)
-    const batchPrice = form.batchPrice === null || (form.batchPrice as unknown) === ''
-      ? null
-      : Number(form.batchPrice)
-
-    if (!form.name.trim()) {
-      toast.show('Product name is required.', 'warning')
-      return null
-    }
-    if (!form.code.trim()) {
-      toast.show('Product code is required.', 'warning')
-      return null
-    }
-    if (!form.barcode.trim()) {
-      toast.show('Barcode is required.', 'warning')
-      return null
-    }
-    if (!Number.isInteger(categoryId) || categoryId <= 0) {
-      toast.show('Category is required.', 'warning')
-      return null
-    }
-    if (!Number.isFinite(price) || price < 0) {
-      toast.show('Price must be zero or higher.', 'warning')
-      return null
-    }
-    if (!form.sellableRetail && !form.sellableWholesale) {
-      toast.show('Enable at least one of Sell in Retail Shop or Sell in Wholesale.', 'warning')
-      return null
-    }
-    if (form.sellableWholesale) {
-      if (!batchUnit) {
-        toast.show('Wholesale batch unit is required when sold wholesale.', 'warning')
-        return null
-      }
-      if (batchSize === null || !Number.isInteger(batchSize) || batchSize < 1) {
-        toast.show('Units per batch must be a whole number of at least 1.', 'warning')
-        return null
-      }
-      if (batchPrice === null || !Number.isFinite(batchPrice) || batchPrice < 0) {
-        toast.show('Batch price must be zero or higher.', 'warning')
-        return null
-      }
-    }
-
-    const stocks: BranchStockInput[] = []
-    for (const branch of branchStore.branches) {
-      const stock = Number(form.stocks[branch.id] ?? 0)
-      if (!Number.isInteger(stock) || stock < 0) {
-        toast.show(
-          `${branch.name} stock must be a non-negative whole number.`,
-          'warning',
-        )
-        return null
-      }
-      stocks.push({ branchId: branch.id, stock })
-    }
-
-    if (!form.image.trim()) {
-      toast.show('Product image is required.', 'warning')
-      return null
-    }
-
-    return {
-      payload: {
-        name: form.name.trim(),
-        code: form.code.trim(),
-        barcode: form.barcode.trim(),
-        categoryId,
-        price,
-        // Clear stale batch data when wholesale is switched off
-        batchUnit: form.sellableWholesale ? batchUnit : null,
-        batchSize: form.sellableWholesale ? batchSize : null,
-        batchPrice: form.sellableWholesale ? batchPrice : null,
-        sellableRetail: form.sellableRetail,
-        sellableWholesale: form.sellableWholesale,
-        image: form.image.trim(),
-      },
-      stocks,
-    }
-  }
-
   async function loadProducts () {
     loading.value = true
     errorMessage.value = ''
     offlineNotice.value = ''
 
     try {
-      const [categoryResult, productResult] = await Promise.all([
+      const [categoryResult, batchUnitResult, productResult] = await Promise.all([
         cachedFetch('categories', getCategories, onlineState.isOnline),
+        cachedFetch('batchUnits', getBatchUnits, onlineState.isOnline),
         cachedFetch('inventory', getInventoryProducts, onlineState.isOnline),
         branchStore.loadBranches(),
       ])
       categories.value = categoryResult.data
+      batchUnits.value = batchUnitResult.data
       products.value = productResult.data
-      if (categoryResult.fromCache || productResult.fromCache) {
-        const cachedAt = productResult.cachedAt ?? categoryResult.cachedAt
+      if (categoryResult.fromCache || batchUnitResult.fromCache || productResult.fromCache) {
+        const cachedAt = productResult.cachedAt ?? categoryResult.cachedAt ?? batchUnitResult.cachedAt
         offlineNotice.value = cachedAt
           ? `Offline — showing inventory as of ${new Date(cachedAt).toLocaleTimeString()}. Editing is disabled until reconnected.`
           : 'Offline — showing the last loaded inventory. Editing is disabled until reconnected.'
@@ -1150,73 +646,6 @@
         = error instanceof Error ? error.message : 'Unable to load inventory.'
     } finally {
       loading.value = false
-    }
-  }
-
-  async function saveDialogProduct () {
-    saving.value = true
-
-    if (imageFile.value) {
-      try {
-        form.image = await uploadProductImage(imageFile.value)
-      } catch (error) {
-        saving.value = false
-        toast.show(
-          error instanceof Error ? error.message : 'Unable to upload image.',
-          'error',
-        )
-        return
-      }
-    }
-
-    const built = buildPayload()
-    if (!built) {
-      saving.value = false
-      return
-    }
-    const { payload, stocks } = built
-
-    try {
-      const categoryName
-        = categories.value.find(category => category.id === payload.categoryId)
-          ?.name ?? ''
-      const stockByBranch: Record<number, number> = {}
-      for (const { branchId, stock } of stocks) stockByBranch[branchId] = stock
-
-      if (dialogMode.value === 'create') {
-        const createdProduct = await createProductInventory(payload, stocks)
-        products.value = [
-          ...products.value,
-          { ...createdProduct, categoryName, stock: 0, stockByBranch },
-        ]
-        toast.show(`${createdProduct.name} created.`)
-      } else if (form.id) {
-        const updatedProduct = await updateProductInventory(
-          { id: form.id, ...payload },
-          stocks,
-        )
-        const index = products.value.findIndex(
-          item => item.id === updatedProduct.id,
-        )
-        if (index !== -1) {
-          products.value[index] = {
-            ...updatedProduct,
-            categoryName,
-            stock: 0,
-            stockByBranch,
-          }
-        }
-        toast.show(`${updatedProduct.name} updated.`)
-      }
-
-      closeDialog()
-    } catch (error) {
-      toast.show(
-        error instanceof Error ? error.message : 'Unable to save product.',
-        'error',
-      )
-    } finally {
-      saving.value = false
     }
   }
 
@@ -1239,113 +668,11 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
-.required-asterisk {
-  color: rgb(var(--v-theme-error));
-}
 .receipt-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
-}
-.form-dialog-body {
-  padding-top: 20px;
-}
-.form-section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: rgba(var(--v-theme-on-surface), 0.6);
-}
-.form-section-divider {
-  margin-block: 8px 24px;
-}
-.channel-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  height: 100%;
-  padding: 14px 16px;
-  border-radius: 12px;
-  border: 1.5px solid rgba(var(--v-theme-on-surface), 0.12);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
-}
-.channel-toggle:hover {
-  border-color: rgba(var(--v-theme-primary), 0.4);
-}
-.channel-toggle.is-active {
-  border-color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.06);
-}
-.cropper-wrap {
-  height: 360px;
-  background: rgba(var(--v-theme-on-surface), 0.04);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.cropper {
-  height: 100%;
-  width: 100%;
-}
-.image-dropzone {
-  position: relative;
-  display: flex;
-  width: 100%;
-  max-width: 220px;
-  aspect-ratio: 1 / 1;
-  margin-inline: auto;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border-radius: 12px;
-  border: 2px dashed rgba(var(--v-theme-on-surface), 0.24);
-  background: rgba(var(--v-theme-on-surface), 0.03);
-  cursor: pointer;
-  text-align: center;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
-}
-.image-dropzone:hover,
-.image-dropzone:focus-visible {
-  border-color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.05);
-  outline: none;
-}
-.image-dropzone.is-dragover {
-  border-color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.08);
-}
-.image-dropzone.has-image {
-  border-style: solid;
-  border-color: rgba(var(--v-theme-on-surface), 0.12);
-}
-.image-dropzone-preview {
-  position: absolute;
-  inset: 0;
-}
-.image-dropzone-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  color: white;
-  background: rgba(0, 0, 0, 0.45);
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.image-dropzone.has-image:hover .image-dropzone-overlay,
-.image-dropzone.has-image:focus-visible .image-dropzone-overlay {
-  opacity: 1;
 }
 .import-error-list {
   max-height: 240px;

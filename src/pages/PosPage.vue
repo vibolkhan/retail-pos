@@ -16,36 +16,22 @@
         variant="solo-filled"
       />
 
-      <div v-if="loading" class="category-chip-row">
-        <v-skeleton-loader
-          v-for="index in 5"
-          :key="index"
-          class="rounded-pill"
-          type="chip"
-        />
-      </div>
-
-      <div v-else class="category-chip-row">
-        <v-chip
-          class="category-chip font-weight-bold"
-          :color="selectedCategory === null ? 'primary' : undefined"
-          :variant="selectedCategory === null ? 'flat' : 'outlined'"
-          @click="selectedCategory = null"
-        >
-          All
-        </v-chip>
-
-        <v-chip
-          v-for="category in categoryOptions"
-          :key="category.id"
-          class="category-chip font-weight-bold"
-          :color="selectedCategory === category.id ? 'primary' : undefined"
-          :variant="selectedCategory === category.id ? 'flat' : 'outlined'"
-          @click="selectedCategory = category.id"
-        >
-          {{ category.name }}
-        </v-chip>
-      </div>
+      <v-select
+        v-model="selectedCategory"
+        class="pos-category-select"
+        clearable
+        density="comfortable"
+        hide-details
+        item-title="name"
+        item-value="id"
+        :items="categoryOptions"
+        :loading="loading"
+        label="Category"
+        placeholder="All categories"
+        prepend-inner-icon="mdi-shape-outline"
+        rounded="lg"
+        variant="solo-filled"
+      />
     </div>
 
     <Transition name="fade-slide">
@@ -79,22 +65,32 @@
       />
     </div>
 
-    <TransitionGroup
-      v-else-if="filteredProducts.length > 0"
-      class="product-grid"
-      name="product-tile"
-      tag="div"
-    >
-      <ProductCard
-        v-for="(product, index) in filteredProducts"
-        :key="product.id"
-        :product="product"
-        :quantity-in-cart="cartQuantities.get(product.id) ?? 0"
-        :style="{ '--stagger': index % 12 }"
-        :wholesale="branchStore.isWholesale"
-        @add="handleAddToCart"
+    <template v-else-if="filteredProducts.length > 0">
+      <TransitionGroup
+        class="product-grid"
+        name="product-tile"
+        tag="div"
+      >
+        <ProductCard
+          v-for="(product, index) in pagedProducts"
+          :key="product.id"
+          :product="product"
+          :quantity-in-cart="cartQuantities.get(product.id) ?? 0"
+          :style="{ '--stagger': index % 12 }"
+          :wholesale="branchStore.isWholesale"
+          @add="handleAddToCart"
+        />
+      </TransitionGroup>
+
+      <v-pagination
+        v-if="pageCount > 1"
+        v-model="page"
+        class="pos-pagination"
+        density="comfortable"
+        :length="pageCount"
+        :total-visible="7"
       />
-    </TransitionGroup>
+    </template>
 
     <Transition v-else appear name="pop-in">
       <v-empty-state
@@ -144,6 +140,9 @@ const selectedCategory = ref<number | null>(null)
 const errorMessage = ref('')
 const offlineNotice = ref('')
 
+const page = ref(1)
+const itemsPerPage = 24
+
 const categoryOptions = computed(() => categories.value)
 
 const cartQuantities = computed(() => {
@@ -173,7 +172,26 @@ const filteredProducts = computed(() => {
       : true
 
     return sellableHere && matchesCategory && matchesSearch
-  })
+  }).sort((a, b) => (a.stock === 0 ? 1 : 0) - (b.stock === 0 ? 1 : 0))
+})
+
+const pageCount = computed(() =>
+  Math.max(1, Math.ceil(filteredProducts.value.length / itemsPerPage)),
+)
+
+const pagedProducts = computed(() => {
+  const start = (page.value - 1) * itemsPerPage
+  return filteredProducts.value.slice(start, start + itemsPerPage)
+})
+
+// Any change to the filter reshuffles which products land on which page,
+// so keep the pager from stranding the user on a now out-of-range page.
+watch([search, selectedCategory, () => branchStore.activeBranchId], () => {
+  page.value = 1
+})
+
+watch(pageCount, (count) => {
+  if (page.value > count) page.value = count
 })
 
 function handleAddToCart(product: Product) {
@@ -261,6 +279,22 @@ watch(
   animation: toolbar-drop-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+@media (min-width: 600px) {
+  .pos-toolbar {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.pos-search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pos-category-select {
+  flex: 0 1 260px;
+}
+
 .pos-search :deep(.v-field) {
   transition: box-shadow 0.2s ease;
 }
@@ -271,30 +305,18 @@ watch(
     0px 6px 10px 4px rgba(var(--v-shadow-color), var(--v-shadow-ambient-opacity, 0.15));
 }
 
-.category-chip-row {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 2px;
+.pos-category-select :deep(.v-field) {
+  transition: box-shadow 0.2s ease;
 }
 
-.category-chip {
-  /* Flex children shrink by default, and Vuetify's chip has no natural
-     min-width — without this the row squeezes every chip down to fit
-     instead of scrolling, leaving unreadable single-letter circles on
-     narrow phones. */
-  flex-shrink: 0;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.category-chip:hover {
-  transform: translateY(-2px);
-}
-
-.category-chip.v-chip--variant-flat {
+.pos-category-select :deep(.v-field--focused) {
   box-shadow:
-    0px 1px 2px 0px rgba(var(--v-shadow-color), var(--v-shadow-key-opacity, 0.3)),
-    0px 2px 6px 2px rgba(var(--v-shadow-color), var(--v-shadow-ambient-opacity, 0.15));
+    0px 2px 3px 0px rgba(var(--v-shadow-color), var(--v-shadow-key-opacity, 0.3)),
+    0px 6px 10px 4px rgba(var(--v-shadow-color), var(--v-shadow-ambient-opacity, 0.15));
+}
+
+.pos-pagination {
+  margin-top: 24px;
 }
 
 .product-grid {

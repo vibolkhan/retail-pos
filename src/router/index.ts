@@ -7,6 +7,10 @@
 import type { Role } from '@/types/auth'
 import { createRouter, createWebHistory } from 'vue-router'
 import CartPage from '@/pages/CartPage.vue'
+import ConfigurationBatchUnitsPage from '@/pages/ConfigurationBatchUnitsPage.vue'
+import ConfigurationCategoriesPage from '@/pages/ConfigurationCategoriesPage.vue'
+import ConfigurationProductsPage from '@/pages/ConfigurationProductsPage.vue'
+import ConfigurationSuppliersPage from '@/pages/ConfigurationSuppliersPage.vue'
 import CustomersPage from '@/pages/CustomersPage.vue'
 import HomePage from '@/pages/HomePage.vue'
 import InventoryPage from '@/pages/InventoryPage.vue'
@@ -14,6 +18,7 @@ import LoginPage from '@/pages/LoginPage.vue'
 import OrderHistory from '@/pages/OrderHistory.vue'
 import PosPage from '@/pages/PosPage.vue'
 import ProfitLossPage from '@/pages/ProfitLossPage.vue'
+import PurchasePage from '@/pages/PurchasePage.vue'
 import SettingsPage from '@/pages/SettingsPage.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -48,6 +53,11 @@ const router = createRouter({
       component: InventoryPage,
       meta: { roles: ['admin', 'manager'] },
     },
+    {
+      path: '/purchases',
+      component: PurchasePage,
+      meta: { roles: ['admin', 'manager'] },
+    },
     { path: '/carts', redirect: '/cart' },
     {
       path: '/sales',
@@ -67,6 +77,26 @@ const router = createRouter({
     {
       path: '/settings',
       component: SettingsPage,
+      meta: { roles: ['admin', 'manager'] },
+    },
+    {
+      path: '/configuration/categories',
+      component: ConfigurationCategoriesPage,
+      meta: { roles: ['admin', 'manager'] },
+    },
+    {
+      path: '/configuration/batch-units',
+      component: ConfigurationBatchUnitsPage,
+      meta: { roles: ['admin', 'manager'] },
+    },
+    {
+      path: '/configuration/products',
+      component: ConfigurationProductsPage,
+      meta: { roles: ['admin', 'manager'] },
+    },
+    {
+      path: '/configuration/suppliers',
+      component: ConfigurationSuppliersPage,
       meta: { roles: ['admin', 'manager'] },
     },
     {

@@ -47,20 +47,43 @@
         </v-list>
       </v-menu>
 
-      <v-list class="rail-nav" density="compact" nav>
-        <v-list-item
-          v-for="item in navigationItems"
-          :key="item.to"
-          class="rail-item"
-          :prepend-icon="item.icon"
-          rounded="lg"
-          :title="item.title"
-          :to="item.to"
-        >
-          <template v-if="item.to === cartRoute && itemCount > 0" #append>
-            <v-badge color="primary" :content="itemCount" inline />
-          </template>
-        </v-list-item>
+      <v-list v-model:opened="openGroups" class="rail-nav" density="compact" nav>
+        <template v-for="item in navigationItems" :key="item.to">
+          <v-list-group v-if="item.children" :value="item.to">
+            <template #activator="{ props: groupProps }">
+              <v-list-item
+                v-bind="groupProps"
+                class="rail-item"
+                :prepend-icon="item.icon"
+                rounded="lg"
+                :title="item.title"
+              />
+            </template>
+
+            <v-list-item
+              v-for="child in item.children"
+              :key="child.to"
+              class="rail-item rail-item--child"
+              :prepend-icon="child.icon"
+              rounded="lg"
+              :title="child.title"
+              :to="child.to"
+            />
+          </v-list-group>
+
+          <v-list-item
+            v-else
+            class="rail-item"
+            :prepend-icon="item.icon"
+            rounded="lg"
+            :title="item.title"
+            :to="item.to"
+          >
+            <template v-if="item.to === cartRoute && itemCount > 0" #append>
+              <v-badge color="primary" :content="itemCount" inline />
+            </template>
+          </v-list-item>
+        </template>
       </v-list>
 
       <v-spacer />
@@ -210,21 +233,45 @@
         </v-list>
       </v-menu>
 
-      <v-list class="rail-nav" density="compact" nav>
-        <v-list-item
-          v-for="item in navigationItems"
-          :key="item.to"
-          class="rail-item"
-          :prepend-icon="item.icon"
-          rounded="lg"
-          :title="item.title"
-          :to="item.to"
-          @click="mobileDrawerOpen = false"
-        >
-          <template v-if="item.to === cartRoute && itemCount > 0" #append>
-            <v-badge color="primary" :content="itemCount" inline />
-          </template>
-        </v-list-item>
+      <v-list v-model:opened="openGroups" class="rail-nav" density="compact" nav>
+        <template v-for="item in navigationItems" :key="item.to">
+          <v-list-group v-if="item.children" :value="item.to">
+            <template #activator="{ props: groupProps }">
+              <v-list-item
+                v-bind="groupProps"
+                class="rail-item"
+                :prepend-icon="item.icon"
+                rounded="lg"
+                :title="item.title"
+              />
+            </template>
+
+            <v-list-item
+              v-for="child in item.children"
+              :key="child.to"
+              class="rail-item rail-item--child"
+              :prepend-icon="child.icon"
+              rounded="lg"
+              :title="child.title"
+              :to="child.to"
+              @click="mobileDrawerOpen = false"
+            />
+          </v-list-group>
+
+          <v-list-item
+            v-else
+            class="rail-item"
+            :prepend-icon="item.icon"
+            rounded="lg"
+            :title="item.title"
+            :to="item.to"
+            @click="mobileDrawerOpen = false"
+          >
+            <template v-if="item.to === cartRoute && itemCount > 0" #append>
+              <v-badge color="primary" :content="itemCount" inline />
+            </template>
+          </v-list-item>
+        </template>
       </v-list>
     </v-navigation-drawer>
   </template>
@@ -232,7 +279,7 @@
 
 <script lang="ts" setup>
   import type { Role } from '@/types/auth'
-  import { computed, onMounted, ref } from 'vue'
+  import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useDisplay, useTheme } from 'vuetify'
   import { useCart } from '@/composables/useCart'
@@ -267,19 +314,61 @@
   )
 
   const cartRoute = '/cart'
-  const allNavigationItems: Array<{ title: string, icon: string, to: string, roles: Role[] }> = [
+
+  type NavChild = { title: string, icon: string, to: string, roles: Role[] }
+  type NavItem = NavChild & { children?: NavChild[] }
+
+  const allNavigationItems: NavItem[] = [
     { title: 'Home', icon: 'mdi-view-dashboard', to: '/', roles: ['admin', 'manager'] },
     { title: 'POS', icon: 'mdi-cash-register', to: '/pos', roles: ['admin', 'manager', 'salesperson'] },
     { title: 'Cart', icon: 'mdi-cart', to: cartRoute, roles: ['admin', 'manager', 'salesperson'] },
     { title: 'Inventory', icon: 'mdi-warehouse', to: '/inventory', roles: ['admin', 'manager'] },
+    { title: 'Purchase', icon: 'mdi-truck-delivery-outline', to: '/purchases', roles: ['admin', 'manager'] },
     { title: 'Sales', icon: 'mdi-history', to: '/sales', roles: ['admin', 'manager'] },
-    { title: 'Customers', icon: 'mdi-account-multiple-outline', to: '/customers', roles: ['admin', 'manager'] },
-    { title: 'P&L', icon: 'mdi-finance', to: '/pnl', roles: ['admin', 'manager'] },
-    { title: 'Settings', icon: 'mdi-cog-outline', to: '/settings', roles: ['admin', 'manager'] },
+    {
+      title: 'Configuration',
+      icon: 'mdi-tune-variant',
+      // Not a real route — the activator never binds `:to`, so this is only
+      // used as the v-for key / v-list-group identity. It must not equal
+      // any child's `to`, or Vuetify's active-route tracking treats the
+      // group itself as "the" active item and collapses it right as you
+      // click into that matching child.
+      to: '/configuration',
+      roles: ['admin', 'manager'],
+      children: [
+        { title: 'Settings', icon: 'mdi-cog-outline', to: '/settings', roles: ['admin', 'manager'] },
+        { title: 'Customers', icon: 'mdi-account-multiple-outline', to: '/customers', roles: ['admin', 'manager'] },
+        { title: 'P&L', icon: 'mdi-finance', to: '/pnl', roles: ['admin', 'manager'] },
+        { title: 'Category', icon: 'mdi-shape-outline', to: '/configuration/categories', roles: ['admin', 'manager'] },
+        { title: 'Batch Unit', icon: 'mdi-package-variant-closed', to: '/configuration/batch-units', roles: ['admin', 'manager'] },
+        { title: 'Product', icon: 'mdi-package-variant', to: '/configuration/products', roles: ['admin', 'manager'] },
+        { title: 'Supplier', icon: 'mdi-truck-outline', to: '/configuration/suppliers', roles: ['admin', 'manager'] },
+      ],
+    },
   ]
 
   const navigationItems = computed(() =>
     allNavigationItems.filter(item => authStore.role && item.roles.includes(authStore.role)),
+  )
+
+  // v-list-group's expand state is normally tracked internally by v-list —
+  // navigating to a child (e.g. Settings) re-evaluates which item is
+  // "active" and Vuetify's default open-strategy collapses any group that
+  // isn't the active one, closing Configuration right as you click into
+  // one of its own children. Owning the opened array ourselves and keeping
+  // a group's key in it whenever the current route matches one of its
+  // children stops that — the group only closes if the user clicks it shut.
+  const openGroups = ref<string[]>([])
+  watch(
+    () => route.path,
+    path => {
+      for (const item of allNavigationItems) {
+        if (item.children?.some(child => child.to === path) && !openGroups.value.includes(item.to)) {
+          openGroups.value = [...openGroups.value, item.to]
+        }
+      }
+    },
+    { immediate: true },
   )
 
   // Mobile has no room for a tab bar wide enough to fit every nav item, so
@@ -290,9 +379,15 @@
   // No page currently renders its own title, and routes carry no title
   // meta — the nav item list is the only place a route-to-label mapping
   // already exists, so the desktop top bar reuses it instead of duplicating it.
-  const pageTitle = computed(() =>
-    allNavigationItems.find(item => item.to === route.path)?.title ?? 'Retail POS',
-  )
+  // Configuration's children aren't top-level entries, so they're searched too.
+  const pageTitle = computed(() => {
+    for (const item of allNavigationItems) {
+      const child = item.children?.find(c => c.to === route.path)
+      if (child) return child.title
+      if (item.to === route.path) return item.title
+    }
+    return 'Retail POS'
+  })
 
   const themeIcon = computed(() => theme.global.current.value.dark ? 'mdi-weather-sunny' : 'mdi-weather-night')
 
@@ -384,6 +479,10 @@
   font-size: 13.5px;
   font-weight: 600;
   margin-bottom: 2px;
+}
+
+.rail-nav :deep(.rail-item--child) {
+  padding-inline-start: 28px !important;
 }
 
 /* Replace Vuetify's filled active pill with a quiet tint + a left accent

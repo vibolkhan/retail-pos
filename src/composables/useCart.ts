@@ -47,7 +47,7 @@ export function useCart () {
 
   // Wholesale sells by the batch (unit name varies per product, e.g. Case/Box)
   function stockMessage (product: Product) {
-    const unit = branchStore.isWholesale ? ` ${product.batchUnit ?? 'batch'}` : ''
+    const unit = branchStore.isWholesale ? ` ${product.batchUnitName ?? 'batch'}` : ''
     return `Only ${product.stock}${unit} ${product.name} available in stock.`
   }
 
@@ -99,7 +99,7 @@ export function useCart () {
       quantity: qty,
       unitPrice: isWholesale ? product.batchPrice! : product.price,
       uom: isWholesale ? 'batch' : 'unit',
-      batchUnit: product.batchUnit,
+      batchUnit: product.batchUnitName ?? null,
       batchSize: product.batchSize,
       stock: product.stock,
       discount: 0,

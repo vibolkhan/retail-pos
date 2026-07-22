@@ -1,13 +1,17 @@
 import type { AuthProfile } from '@/types/auth'
 import type {
+  BatchUnit,
   Branch,
   Category,
   Customer,
   LoyaltyTransaction,
   Product,
+  Purchase,
+  PurchaseStatus,
   Refund,
   Sale,
   SaleStatus,
+  Supplier,
 } from '@/types/pos'
 
 // src/composables/useSupabase.ts
@@ -42,9 +46,14 @@ export interface LoyaltySettings {
 const CURRENCY_SETTINGS_KEY = 'currency'
 const LOYALTY_SETTINGS_KEY = 'loyalty'
 
-// Product with stock broken out per branch (for the Inventory page)
+// Product with stock AND last-purchase cost broken out per branch (for the
+// Inventory page, Configuration > Products, and the Purchase page's product
+// picker). costByBranch stays null for a branch until the product has ever
+// been purchased into it — cost of goods lives on branch_stock, never on
+// Product itself.
 export type InventoryProduct = Product & {
   stockByBranch: Record<number, number>
+  costByBranch: Record<number, number | null>
 }
 
 // Helper to handle Supabase errors
@@ -52,6 +61,17 @@ function handleError (error: any) {
   if (error) {
     throw new Error(error.message ?? 'Supabase request failed')
   }
+}
+
+// Same as handleError, but turns a Postgres FK-violation (23503) into a
+// friendly message — used by delete functions on lookup tables (categories,
+// batch_units) that products reference, so "still in use" reads clearly
+// instead of surfacing the raw constraint-name error.
+function handleDeleteError (error: any, inUseMessage: string) {
+  if (error?.code === '23503') {
+    throw new Error(inUseMessage)
+  }
+  handleError(error)
 }
 
 // Branches
@@ -66,6 +86,108 @@ export async function getCategories (): Promise<Category[]> {
   const { data, error } = await supabase.from('categories').select()
   handleError(error)
   return (data ?? []) as Category[]
+}
+
+export async function createCategory (input: Pick<Category, 'name'>): Promise<Category> {
+  const { data, error } = await supabase.from('categories').insert([input]).select().single()
+  handleError(error)
+  if (!data) {
+    throw new Error('Failed to create category: returned null')
+  }
+  return data as Category
+}
+
+export async function updateCategory (payload: Category): Promise<Category> {
+  const { data, error } = await supabase
+    .from('categories')
+    .update({ name: payload.name })
+    .eq('id', payload.id)
+    .select()
+    .single()
+  handleError(error)
+  if (!data) {
+    throw new Error('Failed to update category: returned null')
+  }
+  return data as Category
+}
+
+export async function deleteCategory (id: number): Promise<void> {
+  const { error } = await supabase.from('categories').delete().eq('id', id)
+  handleDeleteError(error, 'This category is still used by one or more products.')
+}
+
+// Batch units — wholesale batch presets (Configuration > Batch Unit)
+export async function getBatchUnits (): Promise<BatchUnit[]> {
+  const { data, error } = await supabase.from('batch_units').select().order('name')
+  handleError(error)
+  return (data ?? []) as BatchUnit[]
+}
+
+export async function createBatchUnit (input: Pick<BatchUnit, 'name' | 'unit'>): Promise<BatchUnit> {
+  const { data, error } = await supabase.from('batch_units').insert([input]).select().single()
+  handleError(error)
+  if (!data) {
+    throw new Error('Failed to create batch unit: returned null')
+  }
+  return data as BatchUnit
+}
+
+export async function updateBatchUnit (payload: BatchUnit): Promise<BatchUnit> {
+  const { data, error } = await supabase
+    .from('batch_units')
+    .update({ name: payload.name, unit: payload.unit })
+    .eq('id', payload.id)
+    .select()
+    .single()
+  handleError(error)
+  if (!data) {
+    throw new Error('Failed to update batch unit: returned null')
+  }
+  return data as BatchUnit
+}
+
+export async function deleteBatchUnit (id: number): Promise<void> {
+  const { error } = await supabase.from('batch_units').delete().eq('id', id)
+  handleDeleteError(error, 'This batch unit is still used by one or more products.')
+}
+
+// Suppliers (Configuration > Supplier) — back-office master data, writable
+// admin/manager-only, unlike customers below (checkout can quick-add a
+// customer; only Purchase/Configuration touches suppliers).
+export async function getSuppliers (): Promise<Supplier[]> {
+  const { data, error } = await supabase.from('suppliers').select().order('name')
+  handleError(error)
+  return (data ?? []) as Supplier[]
+}
+
+export async function createSupplier (
+  input: Pick<Supplier, 'name' | 'phone' | 'email'>,
+): Promise<Supplier> {
+  const { data, error } = await supabase.from('suppliers').insert([input]).select().single()
+  handleError(error)
+  if (!data) {
+    throw new Error('Failed to create supplier: returned null')
+  }
+  return data as Supplier
+}
+
+export async function updateSupplier (payload: Supplier): Promise<Supplier> {
+  const { data, error } = await supabase
+    .from('suppliers')
+    .update({ name: payload.name, phone: payload.phone, email: payload.email })
+    .eq('id', payload.id)
+    .select()
+    .single()
+  handleError(error)
+  if (!data) {
+    throw new Error('Failed to update supplier: returned null')
+  }
+  return data as Supplier
+}
+
+export async function deleteSupplier (id: number): Promise<void> {
+  const { error } = await supabase.from('suppliers').delete().eq('id', id)
+  handleDeleteError(error, 'This supplier is still used by one or more purchases.')
 }
 
 // Customers — readable/insertable by any authenticated user (salespeople
@@ -93,19 +215,28 @@ export async function getProducts (branchId: number): Promise<Product[]> {
   const [
     { data: products, error: prodError },
     { data: categories, error: catError },
+    { data: batchUnits, error: batchUnitError },
     { data: stocks, error: stockError },
   ] = await Promise.all([
     supabase.from('products').select().is('deletedAt', null),
     supabase.from('categories').select(),
+    supabase.from('batch_units').select(),
     supabase.from('branch_stock').select().eq('branchId', branchId),
   ])
   handleError(prodError)
   handleError(catError)
+  handleError(batchUnitError)
   handleError(stockError)
   const categoryMap = new Map<number, string>()
   if (categories) {
     for (const cat of categories) {
       categoryMap.set(cat.id, cat.name)
+    }
+  }
+  const batchUnitMap = new Map<number, BatchUnit>()
+  if (batchUnits) {
+    for (const bu of batchUnits) {
+      batchUnitMap.set(bu.id, bu)
     }
   }
   const stockMap = new Map<number, number>()
@@ -117,6 +248,8 @@ export async function getProducts (branchId: number): Promise<Product[]> {
   return (products as Product[]).map(p => ({
     ...p,
     categoryName: categoryMap.get(p.categoryId) ?? '',
+    batchUnitName: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.name : undefined,
+    batchUnitUnit: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.unit : undefined,
     stock: stockMap.get(p.id) ?? 0,
   }))
 }
@@ -126,14 +259,17 @@ export async function getInventoryProducts (): Promise<InventoryProduct[]> {
   const [
     { data: products, error: prodError },
     { data: categories, error: catError },
+    { data: batchUnits, error: batchUnitError },
     { data: stocks, error: stockError },
   ] = await Promise.all([
     supabase.from('products').select(),
     supabase.from('categories').select(),
+    supabase.from('batch_units').select(),
     supabase.from('branch_stock').select(),
   ])
   handleError(prodError)
   handleError(catError)
+  handleError(batchUnitError)
   handleError(stockError)
   const categoryMap = new Map<number, string>()
   if (categories) {
@@ -141,19 +277,33 @@ export async function getInventoryProducts (): Promise<InventoryProduct[]> {
       categoryMap.set(cat.id, cat.name)
     }
   }
+  const batchUnitMap = new Map<number, BatchUnit>()
+  if (batchUnits) {
+    for (const bu of batchUnits) {
+      batchUnitMap.set(bu.id, bu)
+    }
+  }
   const stockByProduct = new Map<number, Record<number, number>>()
+  const costByProduct = new Map<number, Record<number, number | null>>()
   if (stocks) {
     for (const row of stocks) {
-      const entry = stockByProduct.get(row.productId) ?? {}
-      entry[row.branchId] = row.stock
-      stockByProduct.set(row.productId, entry)
+      const stockEntry = stockByProduct.get(row.productId) ?? {}
+      stockEntry[row.branchId] = row.stock
+      stockByProduct.set(row.productId, stockEntry)
+
+      const costEntry = costByProduct.get(row.productId) ?? {}
+      costEntry[row.branchId] = row.cost
+      costByProduct.set(row.productId, costEntry)
     }
   }
   return (products as Product[]).map(p => ({
     ...p,
     categoryName: categoryMap.get(p.categoryId) ?? '',
+    batchUnitName: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.name : undefined,
+    batchUnitUnit: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.unit : undefined,
     stock: 0,
     stockByBranch: stockByProduct.get(p.id) ?? {},
+    costByBranch: costByProduct.get(p.id) ?? {},
   }))
 }
 
@@ -247,23 +397,10 @@ export async function updateProductInventory (
   return product
 }
 
-// Soft-delete: hides the product from POS/checkout but keeps its
-// branch_stock rows, so restoreProductInventory can bring it back with
-// stock intact.
-export async function deleteProductInventory (id: number): Promise<void> {
-  const { data, error } = await supabase
-    .from('products')
-    .update({ deletedAt: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-  handleError(error)
-  if (!data || data.length === 0) {
-    throw new Error(
-      'Product was not deleted — no matching row was updated (check update permissions/RLS policy on "products").',
-    )
-  }
-}
-
+// Un-deletes a product previously fully soft-deleted (deletedAt set). No UI
+// surface sets deletedAt anymore — Inventory's own "delete" only flips a
+// branch/channel's sellable flag (see updateProductInventory) — so this only
+// matters for pre-existing rows already in that legacy state.
 export async function restoreProductInventory (id: number): Promise<void> {
   const { data, error } = await supabase
     .from('products')
@@ -348,6 +485,79 @@ export async function incrementBranchStock (
   items: Array<{ productId: number, quantity: number }>,
 ): Promise<void> {
   const { error } = await supabase.rpc('increment_branch_stock', {
+    p_branch_id: branchId,
+    p_items: items,
+  })
+  handleError(error)
+}
+
+// Purchases — stock-receiving events, admin/manager-only (RLS). Header row
+// + jsonb items array, same shape as sales/refunds — no child table.
+export async function getPurchases (range: { from?: string, to?: string } = {}): Promise<Purchase[]> {
+  let query = supabase.from('purchases').select()
+  if (range.from) {
+    query = query.gte('date', range.from)
+  }
+  if (range.to) {
+    query = query.lte('date', range.to)
+  }
+  const { data, error } = await query.order('date', { ascending: false })
+  handleError(error)
+  return (data ?? []) as Purchase[]
+}
+
+export async function addPurchase (purchase: Purchase): Promise<void> {
+  // branchName/supplierName/createdByEmail/voidedByEmail are client-side
+  // joins, not purchases columns
+  const {
+    branchName: _branchName,
+    supplierName: _supplierName,
+    createdByEmail: _createdByEmail,
+    voidedByEmail: _voidedByEmail,
+    ...row
+  } = purchase
+  const { error } = await supabase.from('purchases').insert([row])
+  handleError(error)
+}
+
+export async function updatePurchaseStatus (
+  purchaseId: string,
+  status: PurchaseStatus,
+  voidedBy?: string | null,
+): Promise<void> {
+  const patch: Record<string, unknown> = { status }
+  if (status === 'voided') {
+    patch.voidedAt = new Date().toISOString()
+    patch.voidedBy = voidedBy ?? null
+  }
+  const { error } = await supabase.from('purchases').update(patch).eq('id', purchaseId)
+  handleError(error)
+}
+
+// Atomically bumps branch_stock.stock and overwrites branch_stock.cost for
+// every line of a purchase, returning each line's cost *before* this update
+// (previousCost) so the caller can snapshot it into the purchase's items
+// for a later void to restore exactly.
+export async function receivePurchaseStock (
+  branchId: number,
+  items: Array<{ productId: number, quantity: number, unitCost: number }>,
+): Promise<Array<{ productId: number, quantity: number, unitCost: number, previousCost: number | null }>> {
+  const { data, error } = await supabase.rpc('receive_purchase_stock', {
+    p_branch_id: branchId,
+    p_items: items,
+  })
+  handleError(error)
+  return (data ?? []) as Array<{ productId: number, quantity: number, unitCost: number, previousCost: number | null }>
+}
+
+// Reverses a voided purchase's stock/cost effects (mirrors
+// incrementBranchStock's shape). See the void-ordering tradeoff noted on
+// PurchaseItem/usePurchases.ts — cost restoration isn't order-independent.
+export async function voidPurchaseStock (
+  branchId: number,
+  items: Array<{ productId: number, quantity: number, previousCost: number | null }>,
+): Promise<void> {
+  const { error } = await supabase.rpc('void_purchase_stock', {
     p_branch_id: branchId,
     p_items: items,
   })

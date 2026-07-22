@@ -6,6 +6,15 @@
 
 import type { Role } from '@/types/auth'
 import { createRouter, createWebHistory } from 'vue-router'
+import CartPage from '@/pages/CartPage.vue'
+import CustomersPage from '@/pages/CustomersPage.vue'
+import HomePage from '@/pages/HomePage.vue'
+import InventoryPage from '@/pages/InventoryPage.vue'
+import LoginPage from '@/pages/LoginPage.vue'
+import OrderHistory from '@/pages/OrderHistory.vue'
+import PosPage from '@/pages/PosPage.vue'
+import ProfitLossPage from '@/pages/ProfitLossPage.vue'
+import SettingsPage from '@/pages/SettingsPage.vue'
 import { useAuthStore } from '@/stores/auth'
 
 declare module 'vue-router' {
@@ -20,50 +29,50 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      component: () => import('@/pages/HomePage.vue'),
+      component: HomePage,
       meta: { roles: ['admin', 'manager'] },
     },
     { path: '/home', redirect: '/' },
     {
       path: '/pos',
-      component: () => import('@/pages/PosPage.vue'),
+      component: PosPage,
       meta: { roles: ['admin', 'manager', 'salesperson'] },
     },
     {
       path: '/cart',
-      component: () => import('@/pages/CartPage.vue'),
+      component: CartPage,
       meta: { roles: ['admin', 'manager', 'salesperson'] },
     },
     {
       path: '/inventory',
-      component: () => import('@/pages/InventoryPage.vue'),
+      component: InventoryPage,
       meta: { roles: ['admin', 'manager'] },
     },
     { path: '/carts', redirect: '/cart' },
     {
       path: '/sales',
-      component: () => import('@/pages/OrderHistory.vue'),
+      component: OrderHistory,
       meta: { roles: ['admin', 'manager'] },
     },
     {
       path: '/customers',
-      component: () => import('@/pages/CustomersPage.vue'),
+      component: CustomersPage,
       meta: { roles: ['admin', 'manager'] },
     },
     {
       path: '/pnl',
-      component: () => import('@/pages/ProfitLossPage.vue'),
+      component: ProfitLossPage,
       meta: { roles: ['admin', 'manager'] },
     },
     {
       path: '/settings',
-      component: () => import('@/pages/SettingsPage.vue'),
+      component: SettingsPage,
       meta: { roles: ['admin', 'manager'] },
     },
     {
       path: '/login',
       name: 'login',
-      component: () => import('@/pages/LoginPage.vue'),
+      component: LoginPage,
       meta: { public: true },
     },
     // catch‑all for unknown routes – redirect to home (prevents 404 on refresh)

@@ -101,14 +101,20 @@
       </v-col>
     </v-row>
 
+    <v-skeleton-loader
+      v-if="loading"
+      class="rounded-lg"
+      type="table-heading, table-tbody"
+    />
+
     <v-data-table
+      v-else
       class="pos-data-table"
       density="comfortable"
       elevation="1"
       :headers="headers"
       :items="filteredProducts"
       :items-per-page="10"
-      :loading="loading"
       mobile-breakpoint="md"
       rounded="lg"
     >

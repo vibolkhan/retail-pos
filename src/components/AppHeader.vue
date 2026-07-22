@@ -2,72 +2,98 @@
   <!-- Desktop / tablet: persistent left rail is the primary nav (nothing
        occupied this role before — the bottom nav below is `d-sm-none`,
        so >=600px previously had no way to reach Home/Inventory/Sales
-       except the URL bar). -->
-  <v-navigation-drawer
-    v-if="smAndUp"
-    class="app-rail"
-    color="surface"
-    permanent
-    width="236"
-  >
-    <div class="rail-brand">
-      <v-avatar color="primary" rounded="lg" size="30">
-        <v-icon color="on-primary" icon="mdi-receipt-text-outline" size="16" />
-      </v-avatar>
+       except the URL bar), plus a top bar next to it for the current page
+       title and the status/account controls (moved up from the rail
+       footer, which now only shows the logged-in user). -->
+  <template v-if="smAndUp">
+    <v-navigation-drawer
+      class="app-rail"
+      color="surface"
+      permanent
+      width="236"
+    >
+      <div class="rail-brand">
+        <v-avatar color="primary" rounded="lg" size="30">
+          <v-icon color="on-primary" icon="mdi-receipt-text-outline" size="16" />
+        </v-avatar>
 
-      <span class="rail-brand-word">Retail POS</span>
-    </div>
+        <span class="rail-brand-word">Retail POS</span>
+      </div>
 
-    <v-menu>
-      <template #activator="{ props: menuProps }">
-        <button
-          aria-label="Switch branch"
-          class="branch-pill"
-          :class="branchStore.isWholesale ? 'branch-pill--wholesale' : 'branch-pill--retail'"
-          type="button"
-          v-bind="menuProps"
-        >
-          <v-icon :icon="branchIcon" size="16" />
-          <span class="bp-name">{{ branchStore.activeBranch?.name ?? 'Branch' }}</span>
-          <v-icon icon="mdi-chevron-down" size="14" />
-        </button>
-      </template>
-
-      <v-list density="compact">
-        <v-list-item
-          v-for="branch in branchStore.branches"
-          :key="branch.id"
-          :active="branch.id === branchStore.activeBranchId"
-          :prepend-icon="branch.type === 'wholesale' ? 'mdi-warehouse' : 'mdi-store'"
-          :title="branch.name"
-          @click="branchStore.setActiveBranch(branch.id)"
-        />
-      </v-list>
-    </v-menu>
-
-    <v-list class="rail-nav" density="compact" nav>
-      <v-list-item
-        v-for="item in navigationItems"
-        :key="item.to"
-        class="rail-item"
-        :prepend-icon="item.icon"
-        rounded="lg"
-        :title="item.title"
-        :to="item.to"
-      >
-        <template v-if="item.to === cartRoute && itemCount > 0" #append>
-          <v-badge color="primary" :content="itemCount" inline />
+      <v-menu>
+        <template #activator="{ props: menuProps }">
+          <button
+            aria-label="Switch branch"
+            class="branch-pill"
+            :class="branchStore.isWholesale ? 'branch-pill--wholesale' : 'branch-pill--retail'"
+            type="button"
+            v-bind="menuProps"
+          >
+            <v-icon :icon="branchIcon" size="16" />
+            <span class="bp-name">{{ branchStore.activeBranch?.name ?? 'Branch' }}</span>
+            <v-icon icon="mdi-chevron-down" size="14" />
+          </button>
         </template>
-      </v-list-item>
-    </v-list>
 
-    <v-spacer />
+        <v-list density="compact">
+          <v-list-item
+            v-for="branch in branchStore.branches"
+            :key="branch.id"
+            :active="branch.id === branchStore.activeBranchId"
+            :prepend-icon="branch.type === 'wholesale' ? 'mdi-warehouse' : 'mdi-store'"
+            :title="branch.name"
+            @click="branchStore.setActiveBranch(branch.id)"
+          />
+        </v-list>
+      </v-menu>
 
-    <div class="rail-footer">
-      <v-tooltip v-if="pendingCount > 0 || failedCount > 0" location="top">
+      <v-list class="rail-nav" density="compact" nav>
+        <v-list-item
+          v-for="item in navigationItems"
+          :key="item.to"
+          class="rail-item"
+          :prepend-icon="item.icon"
+          rounded="lg"
+          :title="item.title"
+          :to="item.to"
+        >
+          <template v-if="item.to === cartRoute && itemCount > 0" #append>
+            <v-badge color="primary" :content="itemCount" inline />
+          </template>
+        </v-list-item>
+      </v-list>
+
+      <v-spacer />
+
+      <div class="rail-footer">
+        <v-divider class="mb-2" />
+
+        <div class="rail-footer-row">
+          <div class="rail-user">
+            <span class="rail-user-email">{{ authStore.profile?.email }}</span>
+            <span class="rail-user-role">{{ authStore.role }}</span>
+          </div>
+
+          <v-btn
+            aria-label="Log out"
+            icon="mdi-logout"
+            size="small"
+            variant="text"
+            @click="handleLogout"
+          />
+        </div>
+      </div>
+    </v-navigation-drawer>
+
+    <v-app-bar :color="channelColor" flat>
+      <v-app-bar-title>{{ pageTitle }}</v-app-bar-title>
+
+      <v-spacer />
+
+      <v-tooltip v-if="pendingCount > 0 || failedCount > 0" location="bottom">
         <template #activator="{ props: tooltipProps }">
           <v-chip
-            class="mb-2"
+            class="mr-2"
             :color="failedCount > 0 ? 'error' : 'warning'"
             :prepend-icon="failedCount > 0 ? 'mdi-alert-circle-outline' : 'mdi-cloud-sync-outline'"
             size="small"
@@ -87,37 +113,30 @@
         </span>
       </v-tooltip>
 
-      <v-divider class="mb-2" />
+      <v-btn
+        aria-label="Toggle theme"
+        class="ml-1"
+        :icon="themeIcon"
+        variant="text"
+        @click="toggleTheme"
+      />
 
-      <div class="rail-footer-row">
-        <div class="rail-user">
-          <span class="rail-user-email">{{ authStore.profile?.email }}</span>
-          <span class="rail-user-role">{{ authStore.role }}</span>
-        </div>
+      <v-btn aria-label="Cart" class="ml-1" :to="cartRoute" variant="text">
+        <v-badge v-if="itemCount > 0" color="error" :content="itemCount">
+          <v-icon icon="mdi-cart" />
+        </v-badge>
 
-        <v-btn
-          aria-label="Toggle theme"
-          :icon="themeIcon"
-          size="small"
-          variant="text"
-          @click="toggleTheme"
-        />
+        <v-icon v-else icon="mdi-cart" />
+      </v-btn>
+    </v-app-bar>
+  </template>
 
-        <v-btn
-          aria-label="Log out"
-          icon="mdi-logout"
-          size="small"
-          variant="text"
-          @click="handleLogout"
-        />
-      </div>
-    </div>
-  </v-navigation-drawer>
-
-  <!-- Mobile: slim top bar for branding/branch/theme/logout, bottom tab
-       bar for primary nav (unchanged breakpoint/behavior from before). -->
+  <!-- Mobile: slim top bar with a hamburger that opens the full nav list
+       in a slide-out drawer, instead of a bottom tab bar. -->
   <template v-else>
     <v-app-bar :color="channelColor" flat>
+      <v-app-bar-nav-icon aria-label="Open menu" @click="mobileDrawerOpen = true" />
+
       <v-app-bar-title class="rail-brand-word">
         Retail POS
       </v-app-bar-title>
@@ -136,17 +155,47 @@
         {{ failedCount > 0 ? failedCount : pendingCount }}
       </v-chip>
 
+      <v-btn
+        aria-label="Toggle theme"
+        class="ml-1"
+        :icon="themeIcon"
+        variant="text"
+        @click="toggleTheme"
+      />
+
+      <!-- Cart and Logout sit together at the end — branch switching moved
+           into the drawer below, alongside the rest of the nav. -->
+      <v-btn aria-label="Cart" class="ml-1" :to="cartRoute" variant="text">
+        <v-badge v-if="itemCount > 0" color="error" :content="itemCount">
+          <v-icon icon="mdi-cart" />
+        </v-badge>
+
+        <v-icon v-else icon="mdi-cart" />
+      </v-btn>
+
+      <v-btn
+        aria-label="Log out"
+        class="ml-1"
+        icon="mdi-logout"
+        variant="text"
+        @click="handleLogout"
+      />
+    </v-app-bar>
+
+    <v-navigation-drawer v-model="mobileDrawerOpen" class="app-rail" location="left" temporary>
       <v-menu>
         <template #activator="{ props: menuProps }">
-          <v-btn
+          <button
             aria-label="Switch branch"
-            class="ml-1"
+            class="branch-pill"
+            :class="branchStore.isWholesale ? 'branch-pill--wholesale' : 'branch-pill--retail'"
+            type="button"
             v-bind="menuProps"
-            :prepend-icon="branchIcon"
-            variant="text"
           >
-            <v-icon icon="mdi-chevron-down" size="small" />
-          </v-btn>
+            <v-icon :icon="branchIcon" size="16" />
+            <span class="bp-name">{{ branchStore.activeBranch?.name ?? 'Branch' }}</span>
+            <v-icon icon="mdi-chevron-down" size="14" />
+          </button>
         </template>
 
         <v-list density="compact">
@@ -161,53 +210,30 @@
         </v-list>
       </v-menu>
 
-      <v-btn
-        aria-label="Toggle theme"
-        class="ml-1"
-        :icon="themeIcon"
-        variant="text"
-        @click="toggleTheme"
-      />
-
-      <!-- No separate cart button here: the bottom tab bar's Cart tab
-           already covers it (with the same badge), and freeing this icon's
-           width keeps "Retail POS" from truncating on narrow phones. -->
-      <v-btn
-        aria-label="Log out"
-        class="ml-1"
-        icon="mdi-logout"
-        variant="text"
-        @click="handleLogout"
-      />
-    </v-app-bar>
-
-    <v-bottom-navigation :color="channelColor" grow>
-      <v-btn
-        v-for="item in navigationItems"
-        :key="item.to"
-        class="flex-column"
-        :to="item.to"
-        variant="text"
-      >
-        <v-badge
-          v-if="item.to === cartRoute && itemCount > 0"
-          color="error"
-          :content="itemCount"
+      <v-list class="rail-nav" density="compact" nav>
+        <v-list-item
+          v-for="item in navigationItems"
+          :key="item.to"
+          class="rail-item"
+          :prepend-icon="item.icon"
+          rounded="lg"
+          :title="item.title"
+          :to="item.to"
+          @click="mobileDrawerOpen = false"
         >
-          <v-icon :icon="item.icon" />
-        </v-badge>
-
-        <v-icon v-else :icon="item.icon" />
-        <span class="text-caption">{{ item.title }}</span>
-      </v-btn>
-    </v-bottom-navigation>
+          <template v-if="item.to === cartRoute && itemCount > 0" #append>
+            <v-badge color="primary" :content="itemCount" inline />
+          </template>
+        </v-list-item>
+      </v-list>
+    </v-navigation-drawer>
   </template>
 </template>
 
 <script lang="ts" setup>
   import type { Role } from '@/types/auth'
-  import { computed, onMounted } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { computed, onMounted, ref } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
   import { useDisplay, useTheme } from 'vuetify'
   import { useCart } from '@/composables/useCart'
   import { useSalesSyncQueue } from '@/composables/useSalesSyncQueue'
@@ -216,6 +242,7 @@
   import { useBranchStore } from '@/stores/branch'
 
   const router = useRouter()
+  const route = useRoute()
   const theme = useTheme()
   const { smAndUp } = useDisplay()
   const { itemCount } = useCart()
@@ -253,6 +280,18 @@
 
   const navigationItems = computed(() =>
     allNavigationItems.filter(item => authStore.role && item.roles.includes(authStore.role)),
+  )
+
+  // Mobile has no room for a tab bar wide enough to fit every nav item, so
+  // it opens the same list in a slide-out drawer instead (triggered from
+  // the hamburger icon in the mobile app bar below).
+  const mobileDrawerOpen = ref(false)
+
+  // No page currently renders its own title, and routes carry no title
+  // meta — the nav item list is the only place a route-to-label mapping
+  // already exists, so the desktop top bar reuses it instead of duplicating it.
+  const pageTitle = computed(() =>
+    allNavigationItems.find(item => item.to === route.path)?.title ?? 'Retail POS',
   )
 
   const themeIcon = computed(() => theme.global.current.value.dark ? 'mdi-weather-sunny' : 'mdi-weather-night')

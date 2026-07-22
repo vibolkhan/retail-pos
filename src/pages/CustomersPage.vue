@@ -18,13 +18,19 @@
       </v-col>
     </v-row>
 
+    <v-skeleton-loader
+      v-if="loading"
+      class="rounded-lg"
+      type="table-heading, table-tbody"
+    />
+
     <v-data-table
+      v-else
       class="pos-data-table"
       density="comfortable"
       elevation="1"
       :headers="headers"
       :items="filteredCustomers"
-      :loading="loading"
       mobile-breakpoint="md"
       rounded="lg"
     >
@@ -132,7 +138,13 @@
               </v-btn>
             </v-card-text>
 
-            <v-table density="comfortable">
+            <v-skeleton-loader
+              v-if="loadingLoyaltyHistory"
+              class="rounded-lg"
+              type="table-row@4"
+            />
+
+            <v-table v-else-if="loyaltyHistory.length > 0" density="comfortable">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -159,7 +171,7 @@
             </v-table>
 
             <v-empty-state
-              v-if="!loadingLoyaltyHistory && loyaltyHistory.length === 0"
+              v-else
               class="py-6"
               color="primary"
               headline="No points activity yet"

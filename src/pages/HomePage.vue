@@ -47,7 +47,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-receipt-text-check-outline" size="16" /></span>
           </div>
 
-          <div class="kpi-value">{{ todaySales.length }}</div>
+          <div class="kpi-value">
+            <v-skeleton-loader v-if="loading" type="text" width="50" />
+            <template v-else>{{ todaySales.length }}</template>
+          </div>
         </v-card>
       </v-col>
 
@@ -58,7 +61,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-currency-usd" size="16" /></span>
           </div>
 
-          <div class="kpi-value">{{ formatCurrency(todayRevenue) }}</div>
+          <div class="kpi-value">
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <template v-else>{{ formatCurrency(todayRevenue) }}</template>
+          </div>
         </v-card>
       </v-col>
 
@@ -69,7 +75,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-cart-outline" size="16" /></span>
           </div>
 
-          <div class="kpi-value">{{ itemCount }}</div>
+          <div class="kpi-value">
+            <v-skeleton-loader v-if="loading" type="text" width="50" />
+            <template v-else>{{ itemCount }}</template>
+          </div>
         </v-card>
       </v-col>
 
@@ -80,7 +89,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-clock-outline" size="16" /></span>
           </div>
 
-          <div class="kpi-value">{{ formatCurrency(subtotal) }}</div>
+          <div class="kpi-value">
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <template v-else>{{ formatCurrency(subtotal) }}</template>
+          </div>
         </v-card>
       </v-col>
     </v-row>
@@ -98,7 +110,8 @@
           </div>
 
           <div class="chart-frame">
-            <canvas ref="flowChartRef" aria-label="POS system flow chart" />
+            <v-skeleton-loader v-if="loading" class="chart-frame-skeleton" type="image" />
+            <canvas v-else ref="flowChartRef" aria-label="POS system flow chart" />
           </div>
         </section>
       </v-col>
@@ -113,11 +126,13 @@
               <div class="text-caption text-medium-emphasis">Revenue</div>
             </div>
 
-            <span class="metric-pill">{{ formatCurrency(totalRevenue) }}</span>
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <span v-else class="metric-pill">{{ formatCurrency(totalRevenue) }}</span>
           </div>
 
           <div class="chart-frame chart-frame--wide">
-            <canvas ref="revenueChartRef" aria-label="Seven day revenue trend chart" />
+            <v-skeleton-loader v-if="loading" class="chart-frame-skeleton" type="image" />
+            <canvas v-else ref="revenueChartRef" aria-label="Seven day revenue trend chart" />
           </div>
         </section>
       </v-col>
@@ -135,11 +150,13 @@
               <div class="text-caption text-medium-emphasis">Inventory</div>
             </div>
 
-            <span class="metric-pill">{{ products.length }} products</span>
+            <v-skeleton-loader v-if="loading" type="text" width="90" />
+            <span v-else class="metric-pill">{{ products.length }} products</span>
           </div>
 
           <div class="chart-frame chart-frame--wide">
-            <canvas ref="inventoryChartRef" aria-label="Inventory category stock chart" />
+            <v-skeleton-loader v-if="loading" class="chart-frame-skeleton" type="image" />
+            <canvas v-else ref="inventoryChartRef" aria-label="Inventory category stock chart" />
           </div>
         </section>
       </v-col>
@@ -164,6 +181,7 @@
   const theme = useTheme()
   const branchStore = useBranchStore()
   const { state: onlineState } = useOnline()
+  const loading = ref(true)
   const products = ref<Product[]>([])
   const allSales = ref<Sale[]>([])
   // Dashboard is scoped to the active branch
@@ -387,6 +405,7 @@
   }
 
   async function loadDashboard () {
+    loading.value = true
     try {
       await branchStore.loadBranches()
       if (branchStore.activeBranchId == null) {
@@ -409,6 +428,8 @@
     } catch (error) {
       errorMessage.value
         = error instanceof Error ? error.message : 'Unable to load dashboard data.'
+    } finally {
+      loading.value = false
     }
   }
 
@@ -519,6 +540,11 @@
 
 .chart-frame--wide {
   height: 300px;
+}
+
+.chart-frame-skeleton,
+.chart-frame-skeleton :deep(.v-skeleton-loader__bone) {
+  height: 100%;
 }
 
 .metric-pill {

@@ -16,7 +16,13 @@
               screen, cart, and receipts) at the exchange rate below.
             </p>
 
-            <v-row>
+            <v-row v-if="loading">
+              <v-col v-for="index in 3" :key="index" cols="12" :sm="index === 3 ? 12 : 6">
+                <v-skeleton-loader type="list-item-two-line" />
+              </v-col>
+            </v-row>
+
+            <v-row v-else>
               <v-col cols="12" sm="6">
                 <v-text-field
                   v-model="form.base"
@@ -89,7 +95,13 @@
               discount at checkout.
             </p>
 
-            <v-row>
+            <v-row v-if="loading">
+              <v-col v-for="index in 3" :key="index" cols="12">
+                <v-skeleton-loader type="list-item-two-line" />
+              </v-col>
+            </v-row>
+
+            <v-row v-else>
               <v-col cols="12">
                 <v-text-field
                   v-model.number="loyaltyForm.pointsPerCurrency"
@@ -175,6 +187,7 @@
     saveLoyaltySettings,
   } = useSettings()
 
+  const loading = ref(true)
   const saving = ref(false)
   const form = reactive({ base: 'USD', secondary: 'KHR', exchangeRate: 0 })
 
@@ -187,15 +200,19 @@
   })
 
   onMounted(async () => {
-    await Promise.all([loadCurrencySettings(), loadLoyaltySettings()])
-    form.base = settingsState.currency.base
-    form.secondary = settingsState.currency.secondary
-    form.exchangeRate = settingsState.currency.exchangeRate
+    try {
+      await Promise.all([loadCurrencySettings(), loadLoyaltySettings()])
+      form.base = settingsState.currency.base
+      form.secondary = settingsState.currency.secondary
+      form.exchangeRate = settingsState.currency.exchangeRate
 
-    loyaltyForm.enabled = settingsState.loyalty.enabled
-    loyaltyForm.pointsPerCurrency = settingsState.loyalty.pointsPerCurrency
-    loyaltyForm.redemptionPointsPerCurrency = settingsState.loyalty.redemptionPointsPerCurrency
-    loyaltyForm.minRedeemPoints = settingsState.loyalty.minRedeemPoints
+      loyaltyForm.enabled = settingsState.loyalty.enabled
+      loyaltyForm.pointsPerCurrency = settingsState.loyalty.pointsPerCurrency
+      loyaltyForm.redemptionPointsPerCurrency = settingsState.loyalty.redemptionPointsPerCurrency
+      loyaltyForm.minRedeemPoints = settingsState.loyalty.minRedeemPoints
+    } finally {
+      loading.value = false
+    }
   })
 
   async function save () {

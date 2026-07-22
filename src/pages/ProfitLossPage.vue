@@ -157,7 +157,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-cash-multiple" size="16" /></span>
           </div>
 
-          <div class="kpi-value">{{ formatCurrency(summary.grossSales) }}</div>
+          <div class="kpi-value">
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <template v-else>{{ formatCurrency(summary.grossSales) }}</template>
+          </div>
         </v-card>
       </v-col>
 
@@ -168,7 +171,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-sale" size="16" /></span>
           </div>
 
-          <div class="kpi-value text-error">-{{ formatCurrency(summary.discounts) }}</div>
+          <div class="kpi-value text-error">
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <template v-else>-{{ formatCurrency(summary.discounts) }}</template>
+          </div>
         </v-card>
       </v-col>
 
@@ -179,7 +185,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-receipt-text-outline" size="16" /></span>
           </div>
 
-          <div class="kpi-value">{{ formatCurrency(summary.tax) }}</div>
+          <div class="kpi-value">
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <template v-else>{{ formatCurrency(summary.tax) }}</template>
+          </div>
         </v-card>
       </v-col>
 
@@ -190,9 +199,12 @@
             <span class="kpi-icon"><v-icon icon="mdi-chart-line" size="16" /></span>
           </div>
 
-          <div class="kpi-value text-primary">{{ formatCurrency(summary.netRevenue) }}</div>
+          <div class="kpi-value text-primary">
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <template v-else>{{ formatCurrency(summary.netRevenue) }}</template>
+          </div>
 
-          <div v-if="secondaryNetRevenue" class="kpi-secondary text-medium-emphasis">
+          <div v-if="!loading && secondaryNetRevenue" class="kpi-secondary text-medium-emphasis">
             ≈ {{ secondaryNetRevenue }}
           </div>
         </v-card>
@@ -207,7 +219,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-cart-check" size="16" /></span>
           </div>
 
-          <div class="kpi-value">{{ formatCurrency(summary.netSales) }}</div>
+          <div class="kpi-value">
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <template v-else>{{ formatCurrency(summary.netSales) }}</template>
+          </div>
         </v-card>
       </v-col>
 
@@ -218,7 +233,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-receipt-text-check-outline" size="16" /></span>
           </div>
 
-          <div class="kpi-value">{{ summary.count }}</div>
+          <div class="kpi-value">
+            <v-skeleton-loader v-if="loading" type="text" width="50" />
+            <template v-else>{{ summary.count }}</template>
+          </div>
         </v-card>
       </v-col>
 
@@ -229,7 +247,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-calculator-variant-outline" size="16" /></span>
           </div>
 
-          <div class="kpi-value">{{ formatCurrency(summary.average) }}</div>
+          <div class="kpi-value">
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <template v-else>{{ formatCurrency(summary.average) }}</template>
+          </div>
         </v-card>
       </v-col>
 
@@ -240,7 +261,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-package-variant" size="16" /></span>
           </div>
 
-          <div class="kpi-value">{{ summary.itemsSold }}</div>
+          <div class="kpi-value">
+            <v-skeleton-loader v-if="loading" type="text" width="50" />
+            <template v-else>{{ summary.itemsSold }}</template>
+          </div>
         </v-card>
       </v-col>
 
@@ -251,7 +275,10 @@
             <span class="kpi-icon"><v-icon icon="mdi-cash-refund" size="16" /></span>
           </div>
 
-          <div class="kpi-value text-error">-{{ formatCurrency(summary.refunds) }}</div>
+          <div class="kpi-value text-error">
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <template v-else>-{{ formatCurrency(summary.refunds) }}</template>
+          </div>
         </v-card>
       </v-col>
     </v-row>
@@ -260,7 +287,10 @@
     <v-card class="mb-6" rounded="lg" variant="flat">
       <v-card-title class="section-title">Daily breakdown</v-card-title>
 
+      <v-skeleton-loader v-if="loading" class="rounded-lg" type="table-heading, table-tbody" />
+
       <v-data-table
+        v-else
         class="pos-data-table"
         density="comfortable"
         :headers="dailyHeaders"
@@ -310,7 +340,10 @@
     <v-card rounded="lg" variant="flat">
       <v-card-title class="section-title">By payment method</v-card-title>
 
+      <v-skeleton-loader v-if="loading" class="rounded-lg" type="table-heading, table-tbody" />
+
       <v-data-table
+        v-else
         class="pos-data-table"
         density="comfortable"
         :headers="paymentHeaders"
@@ -362,6 +395,7 @@
   const branchStore = useBranchStore()
   const { state: settingsState } = useSettings()
   const { state: onlineState } = useOnline()
+  const loading = ref(true)
   const sales = ref<Sale[]>([])
   const refunds = ref<Refund[]>([])
   const errorMessage = ref('')
@@ -531,6 +565,7 @@
   }
 
   async function loadData () {
+    loading.value = true
     try {
       const range = dateRangeParams()
       // Cached as a single "last viewed range" slot (not one per range),
@@ -560,6 +595,8 @@
       }
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : 'Unable to load sales data.'
+    } finally {
+      loading.value = false
     }
   }
 

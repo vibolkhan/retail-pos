@@ -170,7 +170,12 @@
 
           <v-row density="comfortable">
             <v-col cols="12">
-              <div class="d-flex ga-2 align-center">
+              <div v-if="customersLoading" class="d-flex ga-2 align-center">
+                <v-skeleton-loader class="flex-grow-1 rounded-lg" type="text" />
+                <v-skeleton-loader class="rounded-lg" type="avatar" />
+              </div>
+
+              <div v-else class="d-flex ga-2 align-center">
                 <v-autocomplete
                   v-model="selectedCustomerId"
                   clearable
@@ -393,6 +398,7 @@
   const { flush, pendingCount } = useSalesSyncQueue()
 
   const customers = ref<Customer[]>([])
+  const customersLoading = ref(true)
   const selectedCustomerId = ref<number | null>(null)
   const newCustomerDialog = ref(false)
   const newCustomerForm = reactive({ name: '', phone: '', email: '' })
@@ -600,8 +606,12 @@
   }
 
   onMounted(async () => {
-    const result = await cachedFetch('customers', getCustomers, onlineState.isOnline)
-    customers.value = result.data
+    try {
+      const result = await cachedFetch('customers', getCustomers, onlineState.isOnline)
+      customers.value = result.data
+    } finally {
+      customersLoading.value = false
+    }
     // Opportunistic: syncs promptly if there's already pending offline sales
     // and we're actually online, rather than waiting for App.vue's own
     // interval/online-event triggers.

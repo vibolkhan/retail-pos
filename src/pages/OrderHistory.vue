@@ -130,7 +130,14 @@
     </v-card>
 
     <!-- Sales Table -->
+    <v-skeleton-loader
+      v-if="loading"
+      class="rounded-lg"
+      type="table-heading, table-tbody"
+    />
+
     <v-data-table
+      v-else
       class="pos-data-table sales-table"
       density="comfortable"
       elevation="1"
@@ -378,6 +385,7 @@
   const { state: settingsState } = useSettings()
   const { state: onlineState } = useOnline()
   const { remainingQuantities, voidSale, refundSaleItems } = useRefunds()
+  const loading = ref(true)
   const sales = ref<Sale[]>([])
   const profiles = ref<AuthProfile[]>([])
   const offlineNotice = ref('')
@@ -485,22 +493,27 @@
   }
 
   async function loadSales () {
-    const range = dateRangeParams()
-    // Cached as a single "last viewed range" slot (not one per range) along
-    // with the range itself, so if this falls back to cache while offline,
-    // the banner below can say which range is actually being shown instead
-    // of silently pretending the currently-selected picker range was honored.
-    const result = await cachedFetch<SalesRangeCache>(
-      'sales:lastRange:history',
-      async () => ({ range, sales: await getSales(range) }),
-      onlineState.isOnline,
-    )
-    sales.value = result.data.sales
-    if (result.fromCache) {
-      const fmt = (iso?: string) => iso ? new Date(iso).toLocaleDateString() : 'the beginning'
-      offlineNotice.value = `Offline — showing cached sales from ${fmt(result.data.range.from)} to ${fmt(result.data.range.to)}. Date filters and refunds/voids are disabled until reconnected.`
-    } else {
-      offlineNotice.value = ''
+    loading.value = true
+    try {
+      const range = dateRangeParams()
+      // Cached as a single "last viewed range" slot (not one per range) along
+      // with the range itself, so if this falls back to cache while offline,
+      // the banner below can say which range is actually being shown instead
+      // of silently pretending the currently-selected picker range was honored.
+      const result = await cachedFetch<SalesRangeCache>(
+        'sales:lastRange:history',
+        async () => ({ range, sales: await getSales(range) }),
+        onlineState.isOnline,
+      )
+      sales.value = result.data.sales
+      if (result.fromCache) {
+        const fmt = (iso?: string) => iso ? new Date(iso).toLocaleDateString() : 'the beginning'
+        offlineNotice.value = `Offline — showing cached sales from ${fmt(result.data.range.from)} to ${fmt(result.data.range.to)}. Date filters and refunds/voids are disabled until reconnected.`
+      } else {
+        offlineNotice.value = ''
+      }
+    } finally {
+      loading.value = false
     }
   }
 

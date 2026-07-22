@@ -68,6 +68,12 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,woff,woff2,ttf,png,svg,ico}'],
+        // Page routes are eagerly imported (router/index.ts) rather than
+        // per-route lazy chunks, so the main JS bundle exceeds Workbox's
+        // default 2 MiB precache limit — raise it so the app shell (still
+        // just one build's worth of JS) keeps being fully precached instead
+        // of silently dropped from offline support.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         // Lets a cold, fully-offline reopen of any deep link (e.g. /inventory)
         // still resolve to the cached app shell, mirroring vercel.json's SPA
         // rewrite (which obviously can't fire with no network at all).

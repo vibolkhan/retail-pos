@@ -16,7 +16,16 @@
         variant="solo-filled"
       />
 
-      <div class="category-chip-row">
+      <div v-if="loading" class="category-chip-row">
+        <v-skeleton-loader
+          v-for="index in 5"
+          :key="index"
+          class="rounded-pill"
+          type="chip"
+        />
+      </div>
+
+      <div v-else class="category-chip-row">
         <v-chip
           class="category-chip font-weight-bold"
           :color="selectedCategory === null ? 'primary' : undefined"

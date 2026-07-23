@@ -78,6 +78,34 @@
         </v-chip>
       </template>
 
+      <template #item.supplierName="{ item }">
+        <v-chip v-if="item.supplierName" size="small" variant="tonal">
+          {{ item.supplierName }}
+        </v-chip>
+
+        <span v-else class="text-medium-emphasis">—</span>
+      </template>
+
+      <template #item.channels="{ item }">
+        <div class="d-flex ga-1">
+          <v-chip
+            :color="item.sellableRetail ? 'primary' : 'grey'"
+            size="small"
+            variant="tonal"
+          >
+            Retail
+          </v-chip>
+
+          <v-chip
+            :color="item.sellableWholesale ? 'wholesale' : 'grey'"
+            size="small"
+            variant="tonal"
+          >
+            Wholesale
+          </v-chip>
+        </div>
+      </template>
+
       <template #item.actions="{ item }">
         <v-tooltip :text="onlineState.isOnline ? 'Edit product' : 'Reconnect to edit this product'">
           <template #activator="{ props }">
@@ -104,10 +132,11 @@
 
     <ProductFormDialog
       v-model="dialogOpen"
+      :batch-units="batchUnits"
       :categories="categories"
       :product="editingProduct"
-      :show-pricing-section="false"
       :show-stock-section="false"
+      :suppliers="suppliers"
       @created="onProductCreated"
       @updated="onProductUpdated"
     />
@@ -116,17 +145,24 @@
 
 <script lang="ts" setup>
   import type { InventoryProduct } from '@/composables/useSupabase'
-  import type { Category, Product } from '@/types/pos'
+  import type { BatchUnit, Category, Product, Supplier } from '@/types/pos'
   import { computed, onMounted, ref } from 'vue'
   import ProductFormDialog from '@/components/ProductFormDialog.vue'
   import { cachedFetch } from '@/composables/useOfflineCache'
   import { useOnline } from '@/composables/useOnline'
-  import { getCategories, getInventoryProducts } from '@/composables/useSupabase'
+  import {
+    getBatchUnits,
+    getCategories,
+    getInventoryProducts,
+    getSuppliers,
+  } from '@/composables/useSupabase'
 
   const { state: onlineState } = useOnline()
 
   const products = ref<InventoryProduct[]>([])
   const categories = ref<Category[]>([])
+  const suppliers = ref<Supplier[]>([])
+  const batchUnits = ref<BatchUnit[]>([])
   const loading = ref(true)
   const offlineNotice = ref('')
   const errorMessage = ref('')
@@ -138,13 +174,15 @@
   const headers = [
     { title: 'Product', value: 'product', sortable: false },
     { title: 'Category', value: 'categoryName', sortable: true },
+    { title: 'Supplier', value: 'supplierName', sortable: true },
+    { title: 'Channels', value: 'channels', sortable: false },
     { title: 'Action', value: 'actions', sortable: false, align: 'end' },
   ] as const
 
-  // Master-data editing only — deleted-state management (soft-delete/
-  // restore), price/channels/batch pricing, and stock all live on
-  // Inventory, so this list never shows or filters by deletedAt beyond
-  // hiding deleted rows entirely.
+  // Catalog + channel/pricing master data — stock-by-branch stays
+  // Inventory-only (that's about physical count, not what a product is),
+  // so this list never shows or filters by deletedAt beyond hiding deleted
+  // rows entirely, and never touches stock.
   const filteredProducts = computed(() => {
     const query = search.value.trim().toLowerCase()
 
@@ -168,19 +206,23 @@
   }
 
   // Same enrichment as InventoryPage.vue's onProductCreated/onProductUpdated
-  // — stockByBranch/costByBranch/batchUnitName/batchUnitUnit are preserved
-  // from the existing row since this page never touches stock, cost,
-  // price, channels, or batch settings.
+  // — stockByBranch/costByBranch are preserved from the existing row since
+  // this page never touches stock or cost; categoryName/supplierName/
+  // batchUnitName/batchUnitUnit are re-derived since this page can change
+  // categoryId/supplierId/batchUnitId.
   function enrichProduct (
     product: Product,
     existing: InventoryProduct | undefined,
   ): InventoryProduct {
     const categoryName = categories.value.find(c => c.id === product.categoryId)?.name ?? ''
+    const supplierName = suppliers.value.find(s => s.id === product.supplierId)?.name
+    const matchedBatchUnit = batchUnits.value.find(bu => bu.id === product.batchUnitId)
     return {
       ...product,
       categoryName,
-      batchUnitName: existing?.batchUnitName,
-      batchUnitUnit: existing?.batchUnitUnit,
+      supplierName,
+      batchUnitName: matchedBatchUnit?.name,
+      batchUnitUnit: matchedBatchUnit?.unit,
       stock: 0,
       stockByBranch: existing?.stockByBranch ?? {},
       costByBranch: existing?.costByBranch ?? {},
@@ -204,14 +246,18 @@
     offlineNotice.value = ''
 
     try {
-      const [categoryResult, productResult] = await Promise.all([
+      const [categoryResult, supplierResult, batchUnitResult, productResult] = await Promise.all([
         cachedFetch('categories', getCategories, onlineState.isOnline),
+        cachedFetch('suppliers', getSuppliers, onlineState.isOnline),
+        cachedFetch('batchUnits', getBatchUnits, onlineState.isOnline),
         cachedFetch('inventory', getInventoryProducts, onlineState.isOnline),
       ])
       categories.value = categoryResult.data
+      suppliers.value = supplierResult.data
+      batchUnits.value = batchUnitResult.data
       products.value = productResult.data
-      if (categoryResult.fromCache || productResult.fromCache) {
-        const cachedAt = productResult.cachedAt ?? categoryResult.cachedAt
+      if (categoryResult.fromCache || supplierResult.fromCache || batchUnitResult.fromCache || productResult.fromCache) {
+        const cachedAt = productResult.cachedAt ?? batchUnitResult.cachedAt ?? supplierResult.cachedAt ?? categoryResult.cachedAt
         offlineNotice.value = cachedAt
           ? `Offline — showing products as of ${new Date(cachedAt).toLocaleTimeString()}. Editing is disabled until reconnected.`
           : 'Offline — showing the last loaded products. Editing is disabled until reconnected.'

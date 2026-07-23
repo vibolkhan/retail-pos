@@ -437,6 +437,10 @@ export async function importInventoryFromExcel (
         code,
         barcode,
         categoryId,
+        // Not a column in the workbook — preserved from the existing row on
+        // update (same as batchUnitName/batchUnitUnit elsewhere), null for
+        // a genuinely new product until assigned from Configuration > Products.
+        supplierId: existing?.supplierId ?? null,
         price,
         batchUnitId,
         batchSize,

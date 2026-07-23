@@ -91,7 +91,7 @@
                       />
                     </v-col>
 
-                    <v-col cols="12">
+                    <v-col cols="6">
                       <v-select
                         v-model="form.categoryId"
                         density="comfortable"
@@ -99,6 +99,19 @@
                         item-value="id"
                         :items="categories"
                         label="Category"
+                        variant="outlined"
+                      />
+                    </v-col>
+
+                    <v-col cols="6">
+                      <v-select
+                        v-model="form.supplierId"
+                        clearable
+                        density="comfortable"
+                        item-title="name"
+                        item-value="id"
+                        :items="suppliers"
+                        label="Supplier (optional)"
                         variant="outlined"
                       />
                     </v-col>
@@ -314,7 +327,7 @@
 
 <script lang="ts" setup>
   import type { BranchStockInput } from '@/composables/useSupabase'
-  import type { BatchUnit, Branch, Category, Product } from '@/types/pos'
+  import type { BatchUnit, Branch, Category, Product, Supplier } from '@/types/pos'
   import { ref, toRef, watch } from 'vue'
   import { Cropper } from 'vue-advanced-cropper'
   import { useOnline } from '@/composables/useOnline'
@@ -335,6 +348,9 @@
       showDetailsSection?: boolean
       categories: Category[]
       // Optional — only meaningful (and only need be passed) when
+      // showDetailsSection is true.
+      suppliers?: Supplier[]
+      // Optional — only meaningful (and only need be passed) when
       // showPricingSection is true.
       batchUnits?: BatchUnit[]
       // Optional — only meaningful (and only need be passed) when
@@ -347,6 +363,7 @@
       showStockSection: true,
       showPricingSection: true,
       showDetailsSection: true,
+      suppliers: () => [],
       batchUnits: () => [],
       branches: () => [],
     },

@@ -31,6 +31,11 @@ export interface Product {
   barcode: string
   categoryId: number
   categoryName?: string
+  // Default/primary supplier this product is received from — optional,
+  // same "joined client-side, never persisted" pattern as categoryName.
+  // Lets Purchases filter/bulk-add a supplier's whole catalog in one go.
+  supplierId: number | null
+  supplierName?: string
   price: number
   // Wholesale batch pricing; null when the product has no batch defined.
   // batchUnitId is a FK into batch_units (Configuration > Batch Unit).
@@ -188,8 +193,21 @@ export interface Supplier {
 // usePurchases.ts.
 export interface PurchaseItem {
   productId: number
+  // Quantity as entered by the receiver, in `uom` — NOT necessarily retail
+  // units. `receive_purchase_stock` always increments branch_stock in
+  // retail units, so a 'batch' line's stock delta is `quantity * batchSize`,
+  // computed client-side in usePurchases.ts before the RPC call; quantity
+  // and uom are both kept here for the receipt/audit trail to read back
+  // correctly (e.g. "50 Case" rather than an opaque "1200").
   quantity: number
+  uom: Uom
   unitCost: number
+  // The actual retail-unit delta applied to branch_stock.stock —
+  // `quantity * batchSize` at receive time when uom is 'batch', else equal
+  // to `quantity`. Stored (not recomputed from the product's *current*
+  // batchSize) so voidPurchase reverses exactly what was applied even if
+  // the product's batch unit preset changes later.
+  retailQuantity: number
   previousCost: number | null
   subtotal: number
 }

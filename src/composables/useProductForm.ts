@@ -15,6 +15,7 @@ export interface ProductFormState {
   code: string
   barcode: string
   categoryId: number | null
+  supplierId: number | null
   price: number
   batchUnitId: number | null
   batchPrice: number | null
@@ -60,6 +61,7 @@ export function useProductForm (options: UseProductFormOptions) {
       code: '',
       barcode: '',
       categoryId: null,
+      supplierId: null,
       price: 0,
       batchUnitId: null,
       batchPrice: null,
@@ -158,6 +160,7 @@ export function useProductForm (options: UseProductFormOptions) {
       code: product.code,
       barcode: product.barcode,
       categoryId: product.categoryId,
+      supplierId: product.supplierId,
       price: product.price,
       batchUnitId: product.batchUnitId,
       batchPrice: product.batchPrice,
@@ -273,6 +276,7 @@ export function useProductForm (options: UseProductFormOptions) {
         code: form.code.trim(),
         barcode: form.barcode.trim(),
         categoryId,
+        supplierId: form.supplierId,
         price,
         // Clear stale batch data when wholesale is switched off
         batchUnitId: form.sellableWholesale ? batchUnitId : null,

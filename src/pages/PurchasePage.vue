@@ -93,7 +93,7 @@
 
             <div class="py-1">
               <div v-for="line in item.items" :key="line.productId">
-                {{ productName(line.productId) }} × {{ line.quantity }}
+                {{ productName(line.productId) }} × {{ line.quantity }} {{ lineUomLabel(line.productId, line.uom) }}
               </div>
             </div>
           </v-tooltip>
@@ -147,7 +147,7 @@
           <v-card-title class="receipt-title">
             <span class="flex-grow-1">Record Purchase</span>
             <v-spacer />
-            <v-btn icon="mdi-close" variant="text" @click="createDialogOpen = false" />
+            <v-btn icon="mdi-close" variant="text" @click="closeCreateDialog" />
           </v-card-title>
 
           <v-divider />
@@ -184,121 +184,139 @@
               </v-col>
             </v-row>
 
-            <v-autocomplete
-              v-model="productPickerId"
-              class="mb-4"
-              clearable
-              density="comfortable"
-              hide-details
-              item-title="name"
-              item-value="id"
-              :items="pickableProducts"
-              label="Add product"
-              prepend-inner-icon="mdi-magnify"
-              variant="outlined"
-              @update:model-value="onProductPicked"
-            >
-              <template #prepend-item>
-                <v-list-item
-                  prepend-icon="mdi-plus"
-                  title="Create new product"
-                  @click="goToCreateProduct"
-                />
+            <div class="d-flex align-start ga-2 mb-4">
+              <v-autocomplete
+                v-model="pickerSelection"
+                chips
+                class="flex-grow-1"
+                closable-chips
+                density="comfortable"
+                hide-details
+                item-title="name"
+                item-value="id"
+                :items="pickableProducts"
+                label="Add products"
+                multiple
+                prepend-inner-icon="mdi-magnify"
+                variant="outlined"
+              >
+                <template #prepend-item>
+                  <v-list-item
+                    prepend-icon="mdi-plus"
+                    title="Create new product"
+                    @click="goToCreateProduct"
+                  />
 
-                <v-divider class="mt-2" />
-              </template>
+                  <v-divider class="mt-2" />
+                </template>
+              </v-autocomplete>
 
-              <template #item="{ item, props: itemProps }">
-                <v-list-item
-                  v-bind="itemProps"
-                  :subtitle="lineQuantity(item.id) ? `Added to purchase · qty ${lineQuantity(item.id)}` : undefined"
-                >
-                  <template v-if="lineQuantity(item.id)" #append>
-                    <v-icon color="success" icon="mdi-check-circle" size="small" />
-                  </template>
-                </v-list-item>
-              </template>
-            </v-autocomplete>
+              <v-tooltip v-if="selectedSupplierId" text="Add every product from this supplier">
+                <template #activator="{ props }">
+                  <v-btn
+                    v-bind="props"
+                    color="primary"
+                    prepend-icon="mdi-playlist-plus"
+                    variant="tonal"
+                    @click="selectAllFromSupplier"
+                  >
+                    Add all ({{ pickableProducts.length }})
+                  </v-btn>
+                </template>
+              </v-tooltip>
+            </div>
 
             <v-empty-state
               v-if="lines.length === 0"
               class="py-6"
               icon="mdi-truck-outline"
-              text="Search for a product above to add a line."
+              text="Search for products above, or use “Add all” to add every product from the selected supplier."
               title="No lines yet"
             />
 
-            <v-table v-else class="purchase-lines-table" density="comfortable">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th class="text-right" style="width: 110px">Qty</th>
-                  <th class="text-right" style="width: 150px">Unit cost</th>
-                  <th class="text-right" style="width: 120px">Subtotal</th>
-                  <th style="width: 48px" />
-                </tr>
-              </thead>
+            <template v-else>
+              <v-data-table
+                class="purchase-lines-table"
+                density="comfortable"
+                :headers="lineHeaders"
+                item-value="productId"
+                :items="lines"
+                :items-per-page="25"
+              >
+                <template #item.product="{ item }">
+                  <span class="font-weight-medium">{{ productName(item.productId) }}</span>
+                </template>
 
-              <tbody>
-                <tr v-for="(line, index) in lines" :key="line.productId">
-                  <td class="font-weight-medium">{{ productName(line.productId) }}</td>
+                <template #item.uom="{ item }">
+                  <v-btn-toggle
+                    v-if="canReceiveAsBatch(item.productId)"
+                    v-model="item.uom"
+                    color="primary"
+                    density="compact"
+                    divided
+                    mandatory
+                  >
+                    <v-btn size="small" value="unit">Unit</v-btn>
+                    <v-btn size="small" value="batch">{{ lineUomLabel(item.productId, 'batch') }}</v-btn>
+                  </v-btn-toggle>
 
-                  <td>
-                    <v-text-field
-                      v-model.number="line.quantity"
-                      class="text-right"
-                      density="compact"
-                      hide-details
-                      min="1"
-                      single-line
-                      type="number"
-                      variant="outlined"
-                    />
-                  </td>
+                  <span v-else class="text-medium-emphasis">Unit</span>
+                </template>
 
-                  <td>
-                    <v-text-field
-                      v-model.number="line.unitCost"
-                      class="text-right"
-                      density="compact"
-                      hide-details
-                      min="0"
-                      prefix="$"
-                      single-line
-                      type="number"
-                      variant="outlined"
-                    />
-                  </td>
+                <template #item.quantity="{ item }">
+                  <v-text-field
+                    v-model.number="item.quantity"
+                    class="text-right"
+                    density="compact"
+                    hide-details
+                    min="0"
+                    single-line
+                    type="number"
+                    variant="outlined"
+                  />
+                </template>
 
-                  <td class="price-mono text-right">
-                    {{ formatCurrency(line.quantity * line.unitCost) }}
-                  </td>
+                <template #item.unitCost="{ item }">
+                  <v-text-field
+                    v-model.number="item.unitCost"
+                    class="text-right"
+                    density="compact"
+                    hide-details
+                    min="0"
+                    prefix="$"
+                    single-line
+                    type="number"
+                    variant="outlined"
+                  />
+                </template>
 
-                  <td>
-                    <v-btn
-                      aria-label="Remove line"
-                      icon="mdi-close"
-                      size="small"
-                      variant="text"
-                      @click="lines.splice(index, 1)"
-                    />
-                  </td>
-                </tr>
-              </tbody>
+                <template #item.subtotal="{ item }">
+                  <span class="price-mono">{{ formatCurrency(item.quantity * item.unitCost) }}</span>
+                </template>
 
-              <tfoot>
-                <tr>
-                  <td class="text-right font-weight-bold" colspan="3">Subtotal</td>
-                  <td class="price-mono text-right text-h6">{{ formatCurrency(purchaseSubtotal) }}</td>
-                  <td />
-                </tr>
-              </tfoot>
-            </v-table>
+                <template #item.actions="{ item }">
+                  <v-btn
+                    aria-label="Remove line"
+                    icon="mdi-close"
+                    size="small"
+                    variant="text"
+                    @click="removeLine(item.productId)"
+                  />
+                </template>
+              </v-data-table>
+
+              <div class="d-flex justify-end mt-3">
+                <div class="text-right">
+                  <span class="font-weight-bold mr-2">Subtotal</span>
+                  <span class="price-mono text-h6">{{ formatCurrency(purchaseSubtotal) }}</span>
+                </div>
+              </div>
+            </template>
           </v-card-text>
 
           <v-card-actions class="px-6 pb-5">
             <v-spacer />
-            <v-btn variant="text" @click="createDialogOpen = false"> Cancel </v-btn>
+            <v-btn variant="text" @click="closeCreateDialog"> Cancel </v-btn>
 
             <v-btn
               color="primary"
@@ -367,7 +385,7 @@
             <tbody>
               <tr v-for="item in detailPurchase.items" :key="item.productId">
                 <td>{{ productName(item.productId) }}</td>
-                <td class="text-right">{{ item.quantity }}</td>
+                <td class="text-right">{{ item.quantity }} {{ lineUomLabel(item.productId, item.uom) }}</td>
                 <td class="text-right price-mono">{{ formatCurrency(item.unitCost) }}</td>
                 <td class="text-right price-mono">{{ formatCurrency(item.subtotal) }}</td>
               </tr>
@@ -414,8 +432,8 @@
 
 <script lang="ts" setup>
   import type { InventoryProduct } from '@/composables/useSupabase'
-  import type { Purchase, Supplier } from '@/types/pos'
-  import { computed, onMounted, ref } from 'vue'
+  import type { Purchase, Supplier, Uom } from '@/types/pos'
+  import { computed, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { cachedFetch } from '@/composables/useOfflineCache'
   import { useOnline } from '@/composables/useOnline'
@@ -431,8 +449,15 @@
 
   interface PurchaseLine {
     productId: number
+    // In `uom` units, as entered — e.g. 50 (cases) or 12 (units).
     quantity: number
+    uom: Uom
+    // Cost per one `uom` unit, as entered — e.g. cost per case.
     unitCost: number
+  }
+
+  function roundMoney (value: number) {
+    return Math.round(value * 100) / 100
   }
 
   const router = useRouter()
@@ -454,7 +479,6 @@
   const selectedBranchId = ref<number | null>(null)
   const lines = ref<PurchaseLine[]>([])
   const saving = ref(false)
-  const productPickerId = ref<number | null>(null)
 
   const detailDialogOpen = ref(false)
   const detailPurchase = ref<Purchase | null>(null)
@@ -472,7 +496,43 @@
     { title: 'Action', value: 'actions', sortable: false, align: 'end' },
   ] as const
 
-  const pickableProducts = computed(() => products.value.filter(p => !p.deletedAt))
+  const lineHeaders = [
+    { title: 'Product', value: 'product', sortable: false },
+    { title: 'Unit', value: 'uom', sortable: false, align: 'center', width: 130 },
+    { title: 'Qty', value: 'quantity', sortable: false, align: 'end', width: 110 },
+    { title: 'Unit cost', value: 'unitCost', sortable: false, align: 'end', width: 150 },
+    { title: 'Subtotal', value: 'subtotal', sortable: false, align: 'end', width: 120 },
+    { title: '', value: 'actions', sortable: false, width: 48 },
+  ] as const
+
+  // Once a supplier is picked, the product picker (and "Add all") scopes
+  // down to just that supplier's catalog instead of every product in the
+  // system — the core fix for receiving many lines from one supplier.
+  // With no supplier selected, every non-deleted product stays pickable
+  // (ad-hoc/no-supplier purchases keep working as before).
+  const pickableProducts = computed(() => {
+    const active = products.value.filter(p => !p.deletedAt)
+    if (!selectedSupplierId.value) return active
+    return active.filter(p => p.supplierId === selectedSupplierId.value)
+  })
+
+  const isWholesaleReceiving = computed(() =>
+    branchStore.branches.find(b => b.id === selectedBranchId.value)?.type === 'wholesale',
+  )
+
+  // Multi-select model for the product picker — bidirectionally synced with
+  // `lines`, so picking several products adds several lines at once, and
+  // removing a chip removes that line, rather than the old one-at-a-time
+  // autocomplete that reset itself after every single pick.
+  const pickerSelection = computed<number[]>({
+    get: () => lines.value.map(line => line.productId),
+    set: ids => {
+      for (const id of ids) {
+        if (!lines.value.some(line => line.productId === id)) addLine(id)
+      }
+      lines.value = lines.value.filter(line => ids.includes(line.productId))
+    },
+  })
 
   const purchaseSubtotal = computed(() =>
     lines.value.reduce((sum, line) => sum + line.quantity * line.unitCost, 0),
@@ -515,8 +575,32 @@
     return products.value.find(p => p.id === productId)?.name ?? `#${productId}`
   }
 
-  function lineQuantity (productId: number) {
-    return lines.value.find(line => line.productId === productId)?.quantity ?? 0
+  function lineUomLabel (productId: number, uom: Uom) {
+    if (uom !== 'batch') return ''
+    return products.value.find(p => p.id === productId)?.batchUnitName ?? 'batch'
+  }
+
+  // Whether this product can be received by the batch on the currently
+  // selected branch — only when that branch is wholesale, the product is
+  // sold wholesale, and it has a batch size configured.
+  function canReceiveAsBatch (productId: number) {
+    if (!isWholesaleReceiving.value) return false
+    const product = products.value.find(p => p.id === productId)
+    return Boolean(product?.sellableWholesale && product?.batchSize)
+  }
+
+  // Converts a line's entered quantity/cost (in `uom` units) into the
+  // retail-unit terms receive_purchase_stock always works in.
+  function retailQuantityFor (line: PurchaseLine) {
+    const product = products.value.find(p => p.id === line.productId)
+    if (line.uom === 'batch' && product?.batchSize) return line.quantity * product.batchSize
+    return line.quantity
+  }
+
+  function retailUnitCostFor (line: PurchaseLine) {
+    const product = products.value.find(p => p.id === line.productId)
+    if (line.uom === 'batch' && product?.batchSize) return roundMoney(line.unitCost / product.batchSize)
+    return line.unitCost
   }
 
   function supplierName (supplierId: number | null) {
@@ -540,20 +624,33 @@
     })
   }
 
+  // Default quantity 0 (not 1) — bulk-adding many lines at once means the
+  // remaining work is typing quantities down a column, not re-editing a
+  // default that's almost always wrong for most of the lines.
   function addLine (productId: number) {
-    const existing = lines.value.find(line => line.productId === productId)
-    if (existing) {
-      existing.quantity += 1
-      return
-    }
+    if (lines.value.some(line => line.productId === productId)) return
     const product = products.value.find(p => p.id === productId)
-    const cost = selectedBranchId.value ? product?.costByBranch[selectedBranchId.value] : null
-    lines.value.push({ productId, quantity: 1, unitCost: cost ?? 0 })
+    const perUnitCost = selectedBranchId.value ? product?.costByBranch[selectedBranchId.value] : null
+    // Receiving into a wholesale branch defaults to the batch unit when the
+    // product supports one — that's how a wholesale branch is actually
+    // restocked, rather than making the receiver flip the toggle on every
+    // one of 200 lines. Still overridable per line.
+    const uom: Uom = canReceiveAsBatch(productId) ? 'batch' : 'unit'
+    const unitCost = uom === 'batch' && product?.batchSize && perUnitCost != null
+      ? roundMoney(perUnitCost * product.batchSize)
+      : (perUnitCost ?? 0)
+    lines.value.push({ productId, quantity: 0, uom, unitCost })
   }
 
-  function onProductPicked (productId: number | null) {
-    if (productId) addLine(productId)
-    productPickerId.value = null
+  function removeLine (productId: number) {
+    lines.value = lines.value.filter(line => line.productId !== productId)
+  }
+
+  // The core fix for "200 products from one supplier": once a supplier is
+  // selected, this adds every one of its (already-scoped) pickable products
+  // as a line in one action instead of searching/selecting 200 times.
+  function selectAllFromSupplier () {
+    for (const product of pickableProducts.value) addLine(product.id)
   }
 
   // Product creation only happens on Configuration > Products now — this
@@ -563,12 +660,62 @@
     router.push('/configuration/products')
   }
 
+  // Persists the in-progress purchase (branch/supplier/lines) so an
+  // accidental refresh or dialog close doesn't lose a long 200-line entry
+  // session — cleared once the purchase is actually submitted.
+  const DRAFT_STORAGE_KEY = 'purchaseDraft:v1'
+
+  interface PurchaseDraft {
+    branchId: number | null
+    supplierId: number | null
+    lines: PurchaseLine[]
+  }
+
+  function saveDraft () {
+    const draft: PurchaseDraft = {
+      branchId: selectedBranchId.value,
+      supplierId: selectedSupplierId.value,
+      lines: lines.value,
+    }
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft))
+  }
+
+  function loadDraft (): PurchaseDraft | null {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY)
+    if (!raw) return null
+    try {
+      return JSON.parse(raw) as PurchaseDraft
+    } catch {
+      return null
+    }
+  }
+
+  function clearDraft () {
+    localStorage.removeItem(DRAFT_STORAGE_KEY)
+  }
+
+  watch([selectedSupplierId, selectedBranchId, lines], () => {
+    if (createDialogOpen.value) saveDraft()
+  }, { deep: true })
+
   function openCreateDialog () {
-    selectedSupplierId.value = null
-    selectedBranchId.value = branchStore.activeBranchId ?? branchStore.branches[0]?.id ?? null
-    lines.value = []
-    productPickerId.value = null
+    const draft = loadDraft()
+    if (draft && draft.lines.length > 0) {
+      selectedSupplierId.value = draft.supplierId
+      selectedBranchId.value = draft.branchId ?? branchStore.activeBranchId ?? branchStore.branches[0]?.id ?? null
+      lines.value = draft.lines
+      toast.show('Restored your unsaved purchase draft.')
+    } else {
+      selectedSupplierId.value = null
+      selectedBranchId.value = branchStore.activeBranchId ?? branchStore.branches[0]?.id ?? null
+      lines.value = []
+    }
     createDialogOpen.value = true
+  }
+
+  function closeCreateDialog () {
+    createDialogOpen.value = false
+    clearDraft()
   }
 
   async function submitPurchase () {
@@ -582,13 +729,25 @@
     }
 
     saving.value = true
-    const result = await createPurchase(selectedBranchId.value, selectedSupplierId.value, lines.value)
+    const result = await createPurchase(
+      selectedBranchId.value,
+      selectedSupplierId.value,
+      lines.value.map(line => ({
+        productId: line.productId,
+        quantity: line.quantity,
+        uom: line.uom,
+        unitCost: line.unitCost,
+        retailQuantity: retailQuantityFor(line),
+        retailUnitCost: retailUnitCostFor(line),
+      })),
+    )
     saving.value = false
 
     if (result.ok) {
       purchases.value = [result.purchase, ...purchases.value]
       toast.show('Purchase recorded.')
       createDialogOpen.value = false
+      clearDraft()
     } else {
       toast.show(result.message, 'error')
     }

@@ -1,4 +1,4 @@
-import type { Purchase, PurchaseItem } from '@/types/pos'
+import type { Purchase, PurchaseItem, Uom } from '@/types/pos'
 import {
   addPurchase,
   receivePurchaseStock,
@@ -13,8 +13,18 @@ function roundMoney (value: number) {
 
 export interface PurchaseLineInput {
   productId: number
+  // As entered/displayed, in `uom` units (e.g. 50 cases, or 12 units).
   quantity: number
+  uom: Uom
+  // As entered/displayed, cost per one `uom` unit (e.g. cost per case).
   unitCost: number
+  // retail_stock/receive_purchase_stock always moves stock and stores cost
+  // in retail units, regardless of what uom the receiver entered in — the
+  // caller (PurchasePage.vue) computes these from quantity/unitCost using
+  // the product's batchSize, since it already has that data; this composable
+  // stays a thin mechanical layer with no product/batchSize lookups of its own.
+  retailQuantity: number
+  retailUnitCost: number
 }
 
 export function usePurchases () {
@@ -30,7 +40,7 @@ export function usePurchases () {
       return { ok: false, message: 'Add at least one line to this purchase.' }
     }
     for (const line of requested) {
-      if (!Number.isInteger(line.quantity) || line.quantity <= 0) {
+      if (!Number.isInteger(line.retailQuantity) || line.retailQuantity <= 0) {
         return { ok: false, message: 'Quantity must be a positive whole number.' }
       }
       if (!Number.isFinite(line.unitCost) || line.unitCost < 0) {
@@ -39,14 +49,26 @@ export function usePurchases () {
     }
 
     try {
-      const received = await receivePurchaseStock(branchId, requested)
-      const items: PurchaseItem[] = received.map(line => ({
-        productId: line.productId,
-        quantity: line.quantity,
-        unitCost: line.unitCost,
-        previousCost: line.previousCost,
-        subtotal: roundMoney(line.unitCost * line.quantity),
-      }))
+      const received = await receivePurchaseStock(
+        branchId,
+        requested.map(line => ({
+          productId: line.productId,
+          quantity: line.retailQuantity,
+          unitCost: line.retailUnitCost,
+        })),
+      )
+      const items: PurchaseItem[] = received.map(receivedLine => {
+        const original = requested.find(line => line.productId === receivedLine.productId)!
+        return {
+          productId: receivedLine.productId,
+          quantity: original.quantity,
+          uom: original.uom,
+          unitCost: original.unitCost,
+          retailQuantity: original.retailQuantity,
+          previousCost: receivedLine.previousCost,
+          subtotal: roundMoney(original.unitCost * original.quantity),
+        }
+      })
       const subtotal = roundMoney(items.reduce((sum, item) => sum + item.subtotal, 0))
 
       const purchase: Purchase = {
@@ -88,7 +110,7 @@ export function usePurchases () {
         purchase.branchId,
         purchase.items.map(item => ({
           productId: item.productId,
-          quantity: item.quantity,
+          quantity: item.retailQuantity,
           previousCost: item.previousCost,
         })),
       )

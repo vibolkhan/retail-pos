@@ -482,6 +482,7 @@
       code: item.code,
       barcode: item.barcode,
       categoryId: item.categoryId,
+      supplierId: item.supplierId,
       price: item.price,
       batchUnitId: item.batchUnitId,
       batchSize: item.batchSize,

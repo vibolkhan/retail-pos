@@ -216,16 +216,19 @@ export async function getProducts (branchId: number): Promise<Product[]> {
     { data: products, error: prodError },
     { data: categories, error: catError },
     { data: batchUnits, error: batchUnitError },
+    { data: suppliers, error: supplierError },
     { data: stocks, error: stockError },
   ] = await Promise.all([
     supabase.from('products').select().is('deletedAt', null),
     supabase.from('categories').select(),
     supabase.from('batch_units').select(),
+    supabase.from('suppliers').select(),
     supabase.from('branch_stock').select().eq('branchId', branchId),
   ])
   handleError(prodError)
   handleError(catError)
   handleError(batchUnitError)
+  handleError(supplierError)
   handleError(stockError)
   const categoryMap = new Map<number, string>()
   if (categories) {
@@ -237,6 +240,12 @@ export async function getProducts (branchId: number): Promise<Product[]> {
   if (batchUnits) {
     for (const bu of batchUnits) {
       batchUnitMap.set(bu.id, bu)
+    }
+  }
+  const supplierMap = new Map<number, string>()
+  if (suppliers) {
+    for (const supplier of suppliers) {
+      supplierMap.set(supplier.id, supplier.name)
     }
   }
   const stockMap = new Map<number, number>()
@@ -250,6 +259,7 @@ export async function getProducts (branchId: number): Promise<Product[]> {
     categoryName: categoryMap.get(p.categoryId) ?? '',
     batchUnitName: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.name : undefined,
     batchUnitUnit: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.unit : undefined,
+    supplierName: p.supplierId ? supplierMap.get(p.supplierId) : undefined,
     stock: stockMap.get(p.id) ?? 0,
   }))
 }
@@ -260,16 +270,19 @@ export async function getInventoryProducts (): Promise<InventoryProduct[]> {
     { data: products, error: prodError },
     { data: categories, error: catError },
     { data: batchUnits, error: batchUnitError },
+    { data: suppliers, error: supplierError },
     { data: stocks, error: stockError },
   ] = await Promise.all([
     supabase.from('products').select(),
     supabase.from('categories').select(),
     supabase.from('batch_units').select(),
+    supabase.from('suppliers').select(),
     supabase.from('branch_stock').select(),
   ])
   handleError(prodError)
   handleError(catError)
   handleError(batchUnitError)
+  handleError(supplierError)
   handleError(stockError)
   const categoryMap = new Map<number, string>()
   if (categories) {
@@ -281,6 +294,12 @@ export async function getInventoryProducts (): Promise<InventoryProduct[]> {
   if (batchUnits) {
     for (const bu of batchUnits) {
       batchUnitMap.set(bu.id, bu)
+    }
+  }
+  const supplierMap = new Map<number, string>()
+  if (suppliers) {
+    for (const supplier of suppliers) {
+      supplierMap.set(supplier.id, supplier.name)
     }
   }
   const stockByProduct = new Map<number, Record<number, number>>()
@@ -301,6 +320,7 @@ export async function getInventoryProducts (): Promise<InventoryProduct[]> {
     categoryName: categoryMap.get(p.categoryId) ?? '',
     batchUnitName: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.name : undefined,
     batchUnitUnit: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.unit : undefined,
+    supplierName: p.supplierId ? supplierMap.get(p.supplierId) : undefined,
     stock: 0,
     stockByBranch: stockByProduct.get(p.id) ?? {},
     costByBranch: costByProduct.get(p.id) ?? {},

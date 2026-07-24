@@ -1,13 +1,14 @@
 import type { BranchStockInput, ProductInventoryPayload } from '@/composables/useSupabase'
 import type { BatchUnit, Branch, Category, Product } from '@/types/pos'
 import type { Ref } from 'vue'
-import { computed, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import {
   createProductInventory,
   updateProductInventory,
   uploadProductImage,
 } from '@/composables/useSupabase'
 import { useToast } from '@/composables/useToast'
+import { DEFAULT_LOW_STOCK_THRESHOLD } from '@/utils/stock'
 
 export interface ProductFormState {
   id: number | null
@@ -16,11 +17,14 @@ export interface ProductFormState {
   barcode: string
   categoryId: number | null
   supplierId: number | null
-  price: number
+  description: string
+  brand: string
+  expiryDate: string | null
+  lowStockThreshold: number
   batchUnitId: number | null
-  batchPrice: number | null
-  sellableRetail: boolean
-  sellableWholesale: boolean
+  price: number
+  // Manual cost entry — a single global value now (was per-branch).
+  cost: number | null
   stocks: Record<number, number>
   image: string
 }
@@ -31,19 +35,13 @@ export interface UseProductFormOptions {
   branches: Ref<Branch[]>
   // Whether this form instance collects/validates per-branch stock at all.
   // false on Configuration > Products — that page only owns catalog
-  // identity (name/code/barcode/category/image); price, channels, and
-  // stock are all configured later, on Inventory. Read once at setup time
-  // (not reactive) — each consumer passes a fixed value.
+  // identity (name/code/barcode/category/image); price/cost/unit/stock are
+  // all configured later, on Inventory. Read once at setup time (not
+  // reactive) — each consumer passes a fixed value.
   includeStock?: boolean
-  // Whether this form instance shows/validates price, sellable channels,
-  // and batch unit/price. false on Configuration > Products for the same
-  // reason as includeStock above — those fields move to Inventory,
-  // conceptually "how this product sells," not catalog identity.
+  // Whether this form instance shows/validates price/cost/unit. false on
+  // Configuration > Products for the same reason as includeStock above.
   includePricing?: boolean
-}
-
-function roundCurrency (value: number) {
-  return Math.round(value * 100) / 100
 }
 
 export function useProductForm (options: UseProductFormOptions) {
@@ -62,14 +60,13 @@ export function useProductForm (options: UseProductFormOptions) {
       barcode: '',
       categoryId: null,
       supplierId: null,
-      price: 0,
+      description: '',
+      brand: '',
+      expiryDate: null,
+      lowStockThreshold: DEFAULT_LOW_STOCK_THRESHOLD,
       batchUnitId: null,
-      batchPrice: null,
-      // Not sellable anywhere until Inventory configures a price/channel —
-      // a brand-new catalog entry from Configuration > Products shouldn't
-      // silently appear in POS at $0.
-      sellableRetail: false,
-      sellableWholesale: false,
+      price: 0,
+      cost: null,
       stocks,
       image: '',
     }
@@ -82,44 +79,6 @@ export function useProductForm (options: UseProductFormOptions) {
   const imageFile = ref<File | null>(null)
   const imagePreviewUrl = ref<string | null>(null)
   let imageObjectUrl: string | null = null
-
-  const selectedBatchUnit = computed(() =>
-    batchUnits.value.find(batchUnit => batchUnit.id === form.batchUnitId) ?? null,
-  )
-
-  const visibleStockBranches = computed(() => {
-    if (!includeStock) {
-      return []
-    }
-    return branches.value.filter(branch =>
-      branch.type === 'wholesale' ? form.sellableWholesale : form.sellableRetail,
-    )
-  })
-
-  // Units per batch is no longer entered manually — it's the batch unit
-  // preset's configured quantity (Configuration > Batch Unit). Selecting a
-  // preset here only suggests "Batch price" (unit price × units-per-batch);
-  // that stays a plain v-model field the admin can still type over
-  // afterward. Only fires from an actual user selection, not when the form
-  // is populated programmatically in loadForEdit, so opening an existing
-  // product for edit never clobbers its saved price.
-  function onBatchUnitSelected (batchUnitId: number | null) {
-    const batchUnit = batchUnits.value.find(item => item.id === batchUnitId)
-    if (!batchUnit) {
-      return
-    }
-    form.batchPrice = roundCurrency(Number(form.price) * batchUnit.unit)
-  }
-
-  // Keeps the batch price suggestion in sync while a batch unit is already
-  // selected and the admin is still adjusting unit price — same "suggest,
-  // don't force" rule as onBatchUnitSelected above.
-  function onUnitPriceChanged (price: number) {
-    if (!selectedBatchUnit.value) {
-      return
-    }
-    form.batchPrice = roundCurrency(Number(price) * selectedBatchUnit.value.unit)
-  }
 
   function resetImageState (initialUrl: string | null = null) {
     if (imageObjectUrl) {
@@ -161,11 +120,13 @@ export function useProductForm (options: UseProductFormOptions) {
       barcode: product.barcode,
       categoryId: product.categoryId,
       supplierId: product.supplierId,
-      price: product.price,
+      description: product.description,
+      brand: product.brand ?? '',
+      expiryDate: product.expiryDate,
+      lowStockThreshold: product.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD,
       batchUnitId: product.batchUnitId,
-      batchPrice: product.batchPrice,
-      sellableRetail: product.sellableRetail,
-      sellableWholesale: product.sellableWholesale,
+      price: product.price,
+      cost: product.cost,
       stocks,
       image: product.image,
     })
@@ -181,31 +142,11 @@ export function useProductForm (options: UseProductFormOptions) {
   // showing a toast) on a validation failure — distinct from an empty array,
   // which just means includeStock is false and no stock section was shown.
   function collectStockInputs (): BranchStockInput[] | null {
-    // When a product is sold through both channels, keep the retail float
-    // above one batch's worth of units — a single wholesale batch sale
-    // shouldn't be able to outweigh (or empty out) the retail side.
-    const requireRetailAboveBatchUnit
-      = form.sellableRetail && form.sellableWholesale && selectedBatchUnit.value
-
     const stocks: BranchStockInput[] = []
     for (const branch of branches.value) {
       const stock = Number(form.stocks[branch.id] ?? 0)
       if (!Number.isInteger(stock) || stock < 0) {
-        toast.show(
-          `${branch.name} stock must be a non-negative whole number.`,
-          'warning',
-        )
-        return null
-      }
-      if (
-        requireRetailAboveBatchUnit
-        && branch.type === 'retail'
-        && stock <= selectedBatchUnit.value!.unit
-      ) {
-        toast.show(
-          `${branch.name} retail stock must be more than the batch unit quantity (${selectedBatchUnit.value!.unit}).`,
-          'warning',
-        )
+        toast.show(`${branch.name} stock must be a non-negative whole number.`, 'warning')
         return null
       }
       stocks.push({ branchId: branch.id, stock })
@@ -216,12 +157,9 @@ export function useProductForm (options: UseProductFormOptions) {
   function buildPayload (): PayloadWithStocks | null {
     const categoryId = Number(form.categoryId)
     const price = Number(form.price)
-    const batchUnitId = form.batchUnitId
-    const batchSize = selectedBatchUnit.value?.unit ?? null
-    // Empty number fields come back as '' or null – normalize to null
-    const batchPrice = form.batchPrice === null || (form.batchPrice as unknown) === ''
-      ? null
-      : Number(form.batchPrice)
+    // Empty number fields come back as '' or null – normalize to null.
+    const cost = form.cost === null || (form.cost as unknown) === '' ? null : Number(form.cost)
+    const lowStockThreshold = Number(form.lowStockThreshold)
 
     if (!form.name.trim()) {
       toast.show('Product name is required.', 'warning')
@@ -239,24 +177,24 @@ export function useProductForm (options: UseProductFormOptions) {
       toast.show('Category is required.', 'warning')
       return null
     }
+    // Every product needs exactly one unit — a catalog-level invariant now,
+    // not gated behind includePricing.
+    if (!form.batchUnitId) {
+      toast.show('Unit is required.', 'warning')
+      return null
+    }
+    if (!Number.isInteger(lowStockThreshold) || lowStockThreshold < 0) {
+      toast.show('Low stock threshold must be a non-negative whole number.', 'warning')
+      return null
+    }
     if (includePricing) {
       if (!Number.isFinite(price) || price < 0) {
         toast.show('Price must be zero or higher.', 'warning')
         return null
       }
-      if (!form.sellableRetail && !form.sellableWholesale) {
-        toast.show('Enable at least one of Sell in Retail Shop or Sell in Wholesale.', 'warning')
+      if (cost !== null && (!Number.isFinite(cost) || cost < 0)) {
+        toast.show('Cost must be zero or higher.', 'warning')
         return null
-      }
-      if (form.sellableWholesale) {
-        if (!batchUnitId || batchSize === null) {
-          toast.show('Wholesale batch unit is required when sold wholesale.', 'warning')
-          return null
-        }
-        if (batchPrice === null || !Number.isFinite(batchPrice) || batchPrice < 0) {
-          toast.show('Batch price must be zero or higher.', 'warning')
-          return null
-        }
       }
     }
 
@@ -277,13 +215,13 @@ export function useProductForm (options: UseProductFormOptions) {
         barcode: form.barcode.trim(),
         categoryId,
         supplierId: form.supplierId,
+        description: form.description.trim(),
+        brand: form.brand.trim() || null,
+        expiryDate: form.expiryDate,
+        lowStockThreshold,
+        batchUnitId: form.batchUnitId,
         price,
-        // Clear stale batch data when wholesale is switched off
-        batchUnitId: form.sellableWholesale ? batchUnitId : null,
-        batchSize: form.sellableWholesale ? batchSize : null,
-        batchPrice: form.sellableWholesale ? batchPrice : null,
-        sellableRetail: form.sellableRetail,
-        sellableWholesale: form.sellableWholesale,
+        cost,
         image: form.image.trim(),
       },
       stocks,
@@ -336,14 +274,12 @@ export function useProductForm (options: UseProductFormOptions) {
     imageFile,
     imagePreviewUrl,
     categories,
-    selectedBatchUnit,
-    visibleStockBranches,
+    batchUnits,
+    branches,
     loadForCreate,
     loadForEdit,
     resetImageState,
     setCroppedImage,
-    onBatchUnitSelected,
-    onUnitPriceChanged,
     buildPayload,
     submit,
   }

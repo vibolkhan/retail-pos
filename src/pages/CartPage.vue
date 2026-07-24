@@ -57,7 +57,7 @@
                           size="x-small"
                           variant="tonal"
                         >
-                          {{ formatCurrency(item.unitPrice) }} / {{ uomLabel(item) }}
+                          {{ formatCurrency(item.unitPrice) }} / {{ legacyUnitLabel(item) || 'item' }}
                         </v-chip>
                       </div>
                     </div>
@@ -380,7 +380,7 @@
 </template>
 
 <script lang="ts" setup>
-  import type { CartItem, Customer, PaymentMethod, Sale } from '@/types/pos'
+  import type { Customer, PaymentMethod, Sale } from '@/types/pos'
   import { computed, onMounted, reactive, ref, watch } from 'vue'
   import ReceiptDialog from '@/components/ReceiptDialog.vue'
   import { useCart } from '@/composables/useCart'
@@ -391,6 +391,7 @@
   import { createCustomer, getCustomers } from '@/composables/useSupabase'
   import { useToast } from '@/composables/useToast'
   import { formatCurrency, formatSecondaryCurrency } from '@/utils/currency'
+  import { legacyUnitLabel } from '@/utils/legacyUnit'
 
   const toast = useToast()
   const { state: settingsState } = useSettings()
@@ -497,10 +498,6 @@
     const result = increaseQuantity(productId)
 
     toast.show(result.message, result.ok ? 'success' : 'warning')
-  }
-
-  function uomLabel (item: CartItem) {
-    return item.uom === 'batch' ? (item.batchUnit ?? 'batch') : 'item'
   }
 
   function handleSetLineDiscount (productId: number, value: string | number) {

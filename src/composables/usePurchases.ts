@@ -1,4 +1,4 @@
-import type { Purchase, PurchaseItem, Uom } from '@/types/pos'
+import type { Purchase, PurchaseItem } from '@/types/pos'
 import {
   addPurchase,
   receivePurchaseStock,
@@ -13,18 +13,10 @@ function roundMoney (value: number) {
 
 export interface PurchaseLineInput {
   productId: number
-  // As entered/displayed, in `uom` units (e.g. 50 cases, or 12 units).
+  // In the product's one unit — no conversion needed, every product
+  // sells/stocks/purchases in exactly the same unit.
   quantity: number
-  uom: Uom
-  // As entered/displayed, cost per one `uom` unit (e.g. cost per case).
   unitCost: number
-  // retail_stock/receive_purchase_stock always moves stock and stores cost
-  // in retail units, regardless of what uom the receiver entered in — the
-  // caller (PurchasePage.vue) computes these from quantity/unitCost using
-  // the product's batchSize, since it already has that data; this composable
-  // stays a thin mechanical layer with no product/batchSize lookups of its own.
-  retailQuantity: number
-  retailUnitCost: number
 }
 
 export function usePurchases () {
@@ -40,7 +32,7 @@ export function usePurchases () {
       return { ok: false, message: 'Add at least one line to this purchase.' }
     }
     for (const line of requested) {
-      if (!Number.isInteger(line.retailQuantity) || line.retailQuantity <= 0) {
+      if (!Number.isInteger(line.quantity) || line.quantity <= 0) {
         return { ok: false, message: 'Quantity must be a positive whole number.' }
       }
       if (!Number.isFinite(line.unitCost) || line.unitCost < 0) {
@@ -53,8 +45,8 @@ export function usePurchases () {
         branchId,
         requested.map(line => ({
           productId: line.productId,
-          quantity: line.retailQuantity,
-          unitCost: line.retailUnitCost,
+          quantity: line.quantity,
+          unitCost: line.unitCost,
         })),
       )
       const items: PurchaseItem[] = received.map(receivedLine => {
@@ -62,9 +54,7 @@ export function usePurchases () {
         return {
           productId: receivedLine.productId,
           quantity: original.quantity,
-          uom: original.uom,
           unitCost: original.unitCost,
-          retailQuantity: original.retailQuantity,
           previousCost: receivedLine.previousCost,
           subtotal: roundMoney(original.unitCost * original.quantity),
         }
@@ -110,7 +100,7 @@ export function usePurchases () {
         purchase.branchId,
         purchase.items.map(item => ({
           productId: item.productId,
-          quantity: item.retailQuantity,
+          quantity: item.quantity,
           previousCost: item.previousCost,
         })),
       )

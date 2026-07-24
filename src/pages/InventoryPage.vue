@@ -49,7 +49,7 @@
     </v-alert>
 
     <v-row class="mb-4">
-      <v-col cols="12" md="6">
+      <v-col cols="12" md="8">
         <v-text-field
           v-model="search"
           clearable
@@ -61,19 +61,7 @@
         />
       </v-col>
 
-      <v-col cols="12" md="3">
-        <v-select
-          v-model="visibilityFilter"
-          density="comfortable"
-          hide-details
-          :items="visibilityOptions"
-          :label="`Visibility in ${branchStore.activeBranch?.name ?? activeType}`"
-          prepend-inner-icon="mdi-eye"
-          variant="outlined"
-        />
-      </v-col>
-
-      <v-col cols="12" md="3">
+      <v-col cols="12" md="4">
         <v-select
           v-model="statusFilter"
           density="comfortable"
@@ -126,38 +114,37 @@
       </template>
 
       <template #item.priceCol="{ item }">
-        <template v-if="activeType === 'wholesale'">
-          <template v-if="item.batchPrice && item.batchSize">
-            <span class="price-mono">{{ formatCurrency(item.batchPrice) }}</span>
+        <span class="price-mono">{{ formatCurrency(item.price) }}</span>
+      </template>
 
-            <div class="text-caption text-medium-emphasis">
-              {{ item.batchSize }} / {{ item.batchUnitName ?? 'batch' }}
-            </div>
-          </template>
+      <template #item.costCol="{ item }">
+        <span v-if="item.cost != null" class="price-mono">
+          {{ formatCurrency(item.cost) }}
+        </span>
 
-          <span v-else class="text-medium-emphasis">—</span>
-        </template>
+        <span v-else class="text-medium-emphasis">—</span>
+      </template>
 
-        <span v-else class="price-mono">{{ formatCurrency(item.price) }}</span>
+      <template #item.marginCol="{ item }">
+        <v-chip
+          v-if="marginFor(item) != null"
+          :color="marginColor(marginFor(item))"
+          size="small"
+          variant="tonal"
+        >
+          {{ formatPercent(marginFor(item)!) }}
+        </v-chip>
+
+        <span v-else class="text-medium-emphasis">—</span>
       </template>
 
       <template #item.stockCol="{ item }">
         <v-chip
-          :color="stockColor(stockFor(item, activeType))"
+          :color="stockColor(stockFor(item), item.lowStockThreshold)"
           size="small"
           variant="tonal"
         >
-          {{ stockFor(item, activeType) }}{{ activeType === 'wholesale' && item.batchUnitName ? ` ${item.batchUnitName}` : ' in stock' }}
-        </v-chip>
-      </template>
-
-      <template #item.sellableHere="{ item }">
-        <v-chip
-          :color="isSellableHere(item) ? (activeType === 'wholesale' ? 'wholesale' : 'primary') : 'grey'"
-          size="small"
-          variant="tonal"
-        >
-          {{ isSellableHere(item) ? 'Sellable here' : 'Hidden here' }}
+          {{ stockFor(item) }} in stock
         </v-chip>
       </template>
 
@@ -196,34 +183,18 @@
             </template>
           </v-tooltip>
 
-          <v-tooltip v-if="isSellableHere(item)" :text="onlineState.isOnline ? `Remove from ${branchStore.activeBranch?.name ?? activeType} inventory` : 'Reconnect to edit this product'">
+          <v-tooltip :text="onlineState.isOnline ? 'Delete product' : 'Reconnect to delete this product'">
             <template #activator="{ props }">
               <v-btn
                 v-bind="props"
-                aria-label="Remove from inventory"
+                aria-label="Delete product"
                 color="error"
                 :disabled="!onlineState.isOnline"
-                icon="mdi-archive-remove-outline"
-                :loading="togglingSellableId === item.id"
+                icon="mdi-delete-outline"
+                :loading="deletingId === item.id"
                 size="small"
                 variant="text"
                 @click="openRemoveDialog(item)"
-              />
-            </template>
-          </v-tooltip>
-
-          <v-tooltip v-else :text="onlineState.isOnline ? `Add to ${branchStore.activeBranch?.name ?? activeType} inventory` : 'Reconnect to edit this product'">
-            <template #activator="{ props }">
-              <v-btn
-                v-bind="props"
-                aria-label="Add to inventory"
-                color="primary"
-                :disabled="!onlineState.isOnline"
-                icon="mdi-archive-arrow-up-outline"
-                :loading="togglingSellableId === item.id"
-                size="small"
-                variant="text"
-                @click="addToInventory(item)"
               />
             </template>
           </v-tooltip>
@@ -252,18 +223,17 @@
     <v-dialog v-model="removeDialogOpen" max-width="420">
       <v-card>
         <v-card-title class="receipt-title">
-          <span class="flex-grow-1">Remove from inventory</span>
+          <span class="flex-grow-1">Delete product</span>
         </v-card-title>
 
         <v-divider />
 
         <v-card-text>
-          Are you sure you want to remove
-          <strong>{{ productToRemove?.name }}</strong> from
-          {{ branchStore.activeBranch?.name ?? activeType }}'s inventory? It
-          will disappear from POS at this branch only — the product itself,
-          its other branch's inventory, and its stock records are kept. You
-          can add it back here any time.
+          Are you sure you want to delete
+          <strong>{{ productToRemove?.name }}</strong>? It will disappear
+          from every branch's POS and Inventory list — its stock records are
+          kept, and you can restore it any time from the Status filter above
+          (set to "Deleted").
         </v-card-text>
 
         <v-card-actions class="px-6 pb-5">
@@ -274,11 +244,11 @@
           <v-btn
             color="error"
             :disabled="!onlineState.isOnline"
-            :loading="togglingSellableId === productToRemove?.id"
+            :loading="deletingId === productToRemove?.id"
             variant="flat"
-            @click="confirmRemoveFromInventory"
+            @click="confirmDeleteProduct"
           >
-            Remove
+            Delete
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -327,8 +297,8 @@
 
 <script lang="ts" setup>
   import type { ImportSummary } from '@/composables/useInventoryExcel'
-  import type { BranchStockInput, InventoryProduct, ProductInventoryPayload } from '@/composables/useSupabase'
-  import type { BatchUnit, BranchType, Category, Product } from '@/types/pos'
+  import type { BranchStockInput, InventoryProduct } from '@/composables/useSupabase'
+  import type { BatchUnit, Category, Product } from '@/types/pos'
   import { computed, onMounted, ref } from 'vue'
   import ProductFormDialog from '@/components/ProductFormDialog.vue'
   import {
@@ -338,17 +308,18 @@
   import { cachedFetch } from '@/composables/useOfflineCache'
   import { useOnline } from '@/composables/useOnline'
   import {
+    deleteProductInventory,
     getBatchUnits,
     getCategories,
     getInventoryProducts,
     restoreProductInventory,
-    updateProductInventory,
   } from '@/composables/useSupabase'
   import { useToast } from '@/composables/useToast'
   import { useBranchStore } from '@/stores/branch'
-  import { formatCurrency } from '@/utils/currency'
+  import { formatCurrency, formatPercent } from '@/utils/currency'
+  import { marginColor } from '@/utils/margin'
+  import { isLowStock } from '@/utils/stock'
 
-  type VisibilityFilter = 'sellable' | 'hidden'
   type StatusFilter = 'active' | 'deleted'
 
   const branchStore = useBranchStore()
@@ -360,17 +331,13 @@
   const loading = ref(true)
   const offlineNotice = ref('')
   const search = ref('')
-  // Defaults to only what's actually sellable in the active branch — the
-  // list is scoped to the selected branch/channel by default, same as POS;
-  // "Hidden here" is only for finding a product to enable for this branch.
-  const visibilityFilter = ref<VisibilityFilter>('sellable')
   const statusFilter = ref<StatusFilter>('active')
   const errorMessage = ref('')
   const dialogOpen = ref(false)
   const editingProduct = ref<InventoryProduct | null>(null)
   const removeDialogOpen = ref(false)
   const productToRemove = ref<InventoryProduct | null>(null)
-  const togglingSellableId = ref<number | null>(null)
+  const deletingId = ref<number | null>(null)
   const restoringId = ref<number | null>(null)
   const exporting = ref(false)
   const importing = ref(false)
@@ -378,32 +345,19 @@
   const importResultDialogOpen = ref(false)
   const importSummary = ref<ImportSummary | null>(null)
 
-  // Inventory follows the same active-branch split as POS: everything here
-  // is scoped to whichever channel (retail/wholesale) is currently selected
-  // in the branch switcher, rather than showing both channels merged in one
-  // row/table.
-  const activeType = computed<BranchType>(() => branchStore.isWholesale ? 'wholesale' : 'retail')
-
-  const headers = computed(() => [
+  const headers = [
     { title: 'Product', value: 'product', sortable: false },
     { title: 'Category', value: 'categoryName', sortable: true },
-    { title: activeType.value === 'wholesale' ? 'Batch Price' : 'Unit Price', value: 'priceCol', sortable: true },
-    { title: activeType.value === 'wholesale' ? 'Wholesale Stock' : 'Retail Stock', value: 'stockCol', sortable: false },
-    { title: 'Visibility', value: 'sellableHere', sortable: false },
+    { title: 'Price', value: 'priceCol', sortable: true },
+    { title: 'Cost', value: 'costCol', sortable: false },
+    { title: 'Margin', value: 'marginCol', sortable: false },
+    { title: 'Stock', value: 'stockCol', sortable: false },
     { title: 'Action', value: 'actions', sortable: false, align: 'end' },
-  ] as const)
-  const visibilityOptions = [
-    { title: 'Sellable here', value: 'sellable' },
-    { title: 'Hidden here', value: 'hidden' },
-  ]
+  ] as const
   const statusOptions = [
     { title: 'Active', value: 'active' },
     { title: 'Deleted', value: 'deleted' },
   ]
-
-  function isSellableHere (product: Product) {
-    return activeType.value === 'wholesale' ? product.sellableWholesale : product.sellableRetail
-  }
 
   const filteredProducts = computed(() => {
     const query = search.value.trim().toLowerCase()
@@ -414,29 +368,26 @@
           value.toLowerCase().includes(query),
         )
         : true
-      const matchesVisibility
-        = visibilityFilter.value === 'sellable'
-          ? isSellableHere(product)
-          : !isSellableHere(product)
       const matchesStatus
         = statusFilter.value === 'active' ? !product.deletedAt : Boolean(product.deletedAt)
 
-      return matchesSearch && matchesVisibility && matchesStatus
+      return matchesSearch && matchesStatus
     })
   })
 
-  function branchIdOf (type: BranchType) {
-    return branchStore.branches.find(b => b.type === type)?.id ?? -1
+  function stockFor (product: InventoryProduct) {
+    return product.stockByBranch[branchStore.activeBranchId ?? -1] ?? 0
   }
 
-  function stockFor (product: InventoryProduct, type: BranchType) {
-    return product.stockByBranch[branchIdOf(type)] ?? 0
-  }
-
-  function stockColor (stock: number) {
+  function stockColor (stock: number, threshold: number | null) {
     if (stock === 0) return 'error'
-    if (stock <= 5) return 'warning'
+    if (isLowStock(stock, threshold)) return 'warning'
     return 'success'
+  }
+
+  function marginFor (product: InventoryProduct) {
+    if (product.cost == null || !product.price) return null
+    return (product.price - product.cost) / product.price
   }
 
   function openEditDialog (product: InventoryProduct) {
@@ -444,81 +395,32 @@
     dialogOpen.value = true
   }
 
-  // Patches the newly created/updated product into the local list with the
-  // same categoryName/batchUnitName/batchUnitUnit client-side joins every
-  // other product in `products` already carries. costByBranch is preserved
-  // from the existing row on update (editing master data never touches
-  // cost) and starts empty for a genuinely new product.
+  // Patches the newly updated product into the local list with the same
+  // categoryName/batchUnitName client-side joins every other product in
+  // `products` already carries.
   function enrichProduct (
     product: Product,
     stocks: BranchStockInput[],
-    costByBranch: Record<number, number | null>,
   ): InventoryProduct {
     const categoryName = categories.value.find(c => c.id === product.categoryId)?.name ?? ''
     const matchedBatchUnit = batchUnits.value.find(bu => bu.id === product.batchUnitId)
     const stockByBranch: Record<number, number> = {}
-    for (const { branchId, stock } of stocks) stockByBranch[branchId] = stock
+    for (const { branchId, stock } of stocks) {
+      stockByBranch[branchId] = stock
+    }
     return {
       ...product,
       categoryName,
       batchUnitName: matchedBatchUnit?.name,
-      batchUnitUnit: matchedBatchUnit?.unit,
       stock: 0,
       stockByBranch,
-      costByBranch,
     }
   }
 
   function onProductUpdated (product: Product, stocks: BranchStockInput[]) {
     const index = products.value.findIndex(item => item.id === product.id)
     if (index !== -1) {
-      products.value[index] = enrichProduct(product, stocks, products.value[index].costByBranch)
-    }
-  }
-
-  function buildInventoryPayload (item: InventoryProduct): ProductInventoryPayload {
-    return {
-      name: item.name,
-      code: item.code,
-      barcode: item.barcode,
-      categoryId: item.categoryId,
-      supplierId: item.supplierId,
-      price: item.price,
-      batchUnitId: item.batchUnitId,
-      batchSize: item.batchSize,
-      batchPrice: item.batchPrice,
-      sellableRetail: item.sellableRetail,
-      sellableWholesale: item.sellableWholesale,
-      image: item.image,
-    }
-  }
-
-  // "Delete"/"Restore" here only ever flips the sellable flag for the
-  // active branch's channel — never the product row's deletedAt — so
-  // removing a product from one branch's inventory leaves it, its other
-  // branch's inventory, and its stock records untouched.
-  async function setSellableForActiveBranch (item: InventoryProduct, value: boolean): Promise<boolean> {
-    togglingSellableId.value = item.id
-    const payload = buildInventoryPayload(item)
-    if (activeType.value === 'wholesale') payload.sellableWholesale = value
-    else payload.sellableRetail = value
-
-    try {
-      await updateProductInventory({ id: item.id, ...payload }, [])
-      const target = products.value.find(p => p.id === item.id)
-      if (target) {
-        if (activeType.value === 'wholesale') target.sellableWholesale = value
-        else target.sellableRetail = value
-      }
-      return true
-    } catch (error) {
-      toast.show(
-        error instanceof Error ? error.message : 'Unable to update inventory.',
-        'error',
-      )
-      return false
-    } finally {
-      togglingSellableId.value = null
+      products.value[index] = enrichProduct(product, stocks)
     }
   }
 
@@ -532,20 +434,27 @@
     productToRemove.value = null
   }
 
-  async function confirmRemoveFromInventory () {
+  // Soft-deletes the product from the whole catalog (every branch at once)
+  // — there's no more per-branch/channel visibility toggle now that retail
+  // vs wholesale selling doesn't exist. Stock records are kept, and it can
+  // be brought back any time via restoreProduct() below (Status: Deleted).
+  async function confirmDeleteProduct () {
     if (!productToRemove.value) return
-    const { name } = productToRemove.value
-    const ok = await setSellableForActiveBranch(productToRemove.value, false)
-    if (ok) {
-      toast.show(`${name} removed from ${branchStore.activeBranch?.name ?? activeType.value} inventory.`)
+    const { id, name } = productToRemove.value
+    deletingId.value = id
+    try {
+      await deleteProductInventory(id)
+      const target = products.value.find(p => p.id === id)
+      if (target) target.deletedAt = new Date().toISOString()
+      toast.show(`${name} deleted.`)
       closeRemoveDialog()
-    }
-  }
-
-  async function addToInventory (product: InventoryProduct) {
-    const ok = await setSellableForActiveBranch(product, true)
-    if (ok) {
-      toast.show(`${product.name} added to ${branchStore.activeBranch?.name ?? activeType.value} inventory.`)
+    } catch (error) {
+      toast.show(
+        error instanceof Error ? error.message : 'Unable to delete product.',
+        'error',
+      )
+    } finally {
+      deletingId.value = null
     }
   }
 

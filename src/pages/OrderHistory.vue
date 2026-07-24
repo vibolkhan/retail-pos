@@ -192,7 +192,7 @@
                 :key="orderItem.productId"
               >
                 <v-list-item-title>
-                  {{ orderItem.quantity }}{{ orderItem.uom === 'batch' ? ' ' + (orderItem.batchUnit ?? 'batch') : '' }} x {{ orderItem.name }}
+                  {{ orderItem.quantity }}{{ legacyUnitLabel(orderItem) ? ' ' + legacyUnitLabel(orderItem) : '' }} x {{ orderItem.name }}
                 </v-list-item-title>
 
                 <v-list-item-subtitle v-if="orderItem.discount">
@@ -379,6 +379,7 @@
   import { useToast } from '@/composables/useToast'
   import { useBranchStore } from '@/stores/branch'
   import { formatCurrency, formatSecondaryCurrency } from '@/utils/currency'
+  import { legacyUnitLabel } from '@/utils/legacyUnit'
 
   const branchStore = useBranchStore()
   const toast = useToast()

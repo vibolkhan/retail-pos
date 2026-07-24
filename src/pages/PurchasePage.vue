@@ -93,7 +93,7 @@
 
             <div class="py-1">
               <div v-for="line in item.items" :key="line.productId">
-                {{ productName(line.productId) }} × {{ line.quantity }} {{ lineUomLabel(line.productId, line.uom) }}
+                {{ productName(line.productId) }} × {{ line.quantity }} {{ productUnitName(line.productId) }}
               </div>
             </div>
           </v-tooltip>
@@ -184,134 +184,130 @@
               </v-col>
             </v-row>
 
-            <div class="d-flex align-start ga-2 mb-4">
-              <v-autocomplete
-                v-model="pickerSelection"
-                chips
-                class="flex-grow-1"
-                closable-chips
-                density="comfortable"
-                hide-details
-                item-title="name"
-                item-value="id"
-                :items="pickableProducts"
-                label="Add products"
-                multiple
-                prepend-inner-icon="mdi-magnify"
-                variant="outlined"
-              >
-                <template #prepend-item>
-                  <v-list-item
-                    prepend-icon="mdi-plus"
-                    title="Create new product"
-                    @click="goToCreateProduct"
-                  />
+            <div class="d-flex justify-space-between align-center mb-2">
+              <span class="text-subtitle-2 text-medium-emphasis">Line items</span>
 
-                  <v-divider class="mt-2" />
-                </template>
-              </v-autocomplete>
+              <div class="d-flex ga-2">
+                <v-btn
+                  prepend-icon="mdi-plus"
+                  size="small"
+                  variant="text"
+                  @click="goToCreateProduct"
+                >
+                  New product
+                </v-btn>
 
-              <v-tooltip v-if="selectedSupplierId" text="Add every product from this supplier">
-                <template #activator="{ props }">
-                  <v-btn
-                    v-bind="props"
-                    color="primary"
-                    prepend-icon="mdi-playlist-plus"
-                    variant="tonal"
-                    @click="selectAllFromSupplier"
-                  >
-                    Add all ({{ pickableProducts.length }})
-                  </v-btn>
-                </template>
-              </v-tooltip>
+                <v-tooltip v-if="selectedSupplierId" text="Add every product from this supplier">
+                  <template #activator="{ props }">
+                    <v-btn
+                      v-bind="props"
+                      color="primary"
+                      prepend-icon="mdi-playlist-plus"
+                      size="small"
+                      variant="tonal"
+                      @click="selectAllFromSupplier"
+                    >
+                      Add all ({{ pickableProducts.length }})
+                    </v-btn>
+                  </template>
+                </v-tooltip>
+              </div>
             </div>
 
-            <v-empty-state
-              v-if="lines.length === 0"
-              class="py-6"
-              icon="mdi-truck-outline"
-              text="Search for products above, or use “Add all” to add every product from the selected supplier."
-              title="No lines yet"
-            />
+            <v-data-table
+              class="purchase-lines-table"
+              density="comfortable"
+              :headers="lineHeaders"
+              item-value="rowId"
+              :items="lines"
+              :items-per-page="-1"
+              no-data-text="No lines yet — click “Add row” below to begin."
+            >
+              <template #item.product="{ item }">
+                <v-autocomplete
+                  v-model="item.productId"
+                  density="compact"
+                  hide-details
+                  item-title="name"
+                  item-value="id"
+                  :items="availableProductsForRow(item)"
+                  placeholder="Select product"
+                  variant="outlined"
+                  @update:model-value="onLineProductChange(item)"
+                />
+              </template>
 
-            <template v-else>
-              <v-data-table
-                class="purchase-lines-table"
-                density="comfortable"
-                :headers="lineHeaders"
-                item-value="productId"
-                :items="lines"
-                :items-per-page="25"
-              >
-                <template #item.product="{ item }">
-                  <span class="font-weight-medium">{{ productName(item.productId) }}</span>
-                </template>
+              <template #item.unit="{ item }">
+                <span class="text-medium-emphasis">{{ productUnitName(item.productId) }}</span>
+              </template>
 
-                <template #item.uom="{ item }">
-                  <v-btn-toggle
-                    v-if="canReceiveAsBatch(item.productId)"
-                    v-model="item.uom"
-                    color="primary"
-                    density="compact"
-                    divided
-                    mandatory
-                  >
-                    <v-btn size="small" value="unit">Unit</v-btn>
-                    <v-btn size="small" value="batch">{{ lineUomLabel(item.productId, 'batch') }}</v-btn>
-                  </v-btn-toggle>
+              <template #item.quantity="{ item }">
+                <v-text-field
+                  v-model.number="item.quantity"
+                  class="text-right"
+                  density="compact"
+                  hide-details
+                  min="0"
+                  single-line
+                  type="number"
+                  variant="outlined"
+                />
+              </template>
 
-                  <span v-else class="text-medium-emphasis">Unit</span>
-                </template>
+              <template #item.unitCost="{ item }">
+                <v-text-field
+                  v-model.number="item.unitCost"
+                  class="text-right"
+                  density="compact"
+                  hide-details
+                  min="0"
+                  prefix="$"
+                  single-line
+                  type="number"
+                  variant="outlined"
+                />
+              </template>
 
-                <template #item.quantity="{ item }">
-                  <v-text-field
-                    v-model.number="item.quantity"
-                    class="text-right"
-                    density="compact"
-                    hide-details
-                    min="0"
-                    single-line
-                    type="number"
-                    variant="outlined"
-                  />
-                </template>
+              <template #item.margin="{ item }">
+                <v-chip
+                  v-if="lineMargin(item) != null"
+                  :color="marginColor(lineMargin(item))"
+                  size="small"
+                  variant="tonal"
+                >
+                  {{ formatPercent(lineMargin(item)!) }}
+                </v-chip>
 
-                <template #item.unitCost="{ item }">
-                  <v-text-field
-                    v-model.number="item.unitCost"
-                    class="text-right"
-                    density="compact"
-                    hide-details
-                    min="0"
-                    prefix="$"
-                    single-line
-                    type="number"
-                    variant="outlined"
-                  />
-                </template>
+                <span v-else class="text-medium-emphasis">—</span>
+              </template>
 
-                <template #item.subtotal="{ item }">
-                  <span class="price-mono">{{ formatCurrency(item.quantity * item.unitCost) }}</span>
-                </template>
+              <template #item.subtotal="{ item }">
+                <span class="price-mono">{{ formatCurrency(item.quantity * item.unitCost) }}</span>
+              </template>
 
-                <template #item.actions="{ item }">
-                  <v-btn
-                    aria-label="Remove line"
-                    icon="mdi-close"
-                    size="small"
-                    variant="text"
-                    @click="removeLine(item.productId)"
-                  />
-                </template>
-              </v-data-table>
+              <template #item.actions="{ item }">
+                <v-btn
+                  aria-label="Remove line"
+                  icon="mdi-close"
+                  size="small"
+                  variant="text"
+                  @click="removeLine(item.rowId)"
+                />
+              </template>
+            </v-data-table>
 
-              <div class="d-flex justify-end mt-3">
-                <div class="text-right">
-                  <span class="font-weight-bold mr-2">Subtotal</span>
-                  <span class="price-mono text-h6">{{ formatCurrency(purchaseSubtotal) }}</span>
+            <div class="d-flex justify-space-between align-center mt-3">
+              <v-btn prepend-icon="mdi-plus" variant="tonal" @click="addEmptyLine"> Add row </v-btn>
+
+              <div class="text-right">
+                <span class="font-weight-bold mr-2">Total</span>
+                <span class="price-mono text-h6">{{ formatCurrency(purchaseSubtotal) }}</span>
+
+                <div v-if="secondaryTotal" class="text-caption text-medium-emphasis price-mono">
+                  ≈ {{ secondaryTotal }}
                 </div>
               </div>
-            </template>
+            </div>
           </v-card-text>
 
           <v-card-actions class="px-6 pb-5">
@@ -385,7 +381,7 @@
             <tbody>
               <tr v-for="item in detailPurchase.items" :key="item.productId">
                 <td>{{ productName(item.productId) }}</td>
-                <td class="text-right">{{ item.quantity }} {{ lineUomLabel(item.productId, item.uom) }}</td>
+                <td class="text-right">{{ item.quantity }} {{ productUnitName(item.productId) }}</td>
                 <td class="text-right price-mono">{{ formatCurrency(item.unitCost) }}</td>
                 <td class="text-right price-mono">{{ formatCurrency(item.subtotal) }}</td>
               </tr>
@@ -432,12 +428,13 @@
 
 <script lang="ts" setup>
   import type { InventoryProduct } from '@/composables/useSupabase'
-  import type { Purchase, Supplier, Uom } from '@/types/pos'
+  import type { Purchase, Supplier } from '@/types/pos'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { cachedFetch } from '@/composables/useOfflineCache'
   import { useOnline } from '@/composables/useOnline'
   import { usePurchases } from '@/composables/usePurchases'
+  import { useSettings } from '@/composables/useSettings'
   import {
     getInventoryProducts,
     getPurchases,
@@ -445,25 +442,25 @@
   } from '@/composables/useSupabase'
   import { useToast } from '@/composables/useToast'
   import { useBranchStore } from '@/stores/branch'
-  import { formatCurrency } from '@/utils/currency'
+  import { formatCurrency, formatPercent, formatSecondaryCurrency } from '@/utils/currency'
+  import { marginColor } from '@/utils/margin'
 
   interface PurchaseLine {
-    productId: number
-    // In `uom` units, as entered — e.g. 50 (cases) or 12 (units).
+    // Local-only identity for the table row, stable across product changes —
+    // productId itself can't be the key since a freshly added row starts
+    // with no product selected yet.
+    rowId: number
+    productId: number | null
+    // In the product's one unit — no conversion needed.
     quantity: number
-    uom: Uom
-    // Cost per one `uom` unit, as entered — e.g. cost per case.
     unitCost: number
-  }
-
-  function roundMoney (value: number) {
-    return Math.round(value * 100) / 100
   }
 
   const router = useRouter()
   const branchStore = useBranchStore()
   const toast = useToast()
   const { state: onlineState } = useOnline()
+  const { state: settingsState } = useSettings()
   const { createPurchase, voidPurchase } = usePurchases()
 
   const purchases = ref<Purchase[]>([])
@@ -498,9 +495,10 @@
 
   const lineHeaders = [
     { title: 'Product', value: 'product', sortable: false },
-    { title: 'Unit', value: 'uom', sortable: false, align: 'center', width: 130 },
+    { title: 'Unit', value: 'unit', sortable: false, align: 'center', width: 130 },
     { title: 'Qty', value: 'quantity', sortable: false, align: 'end', width: 110 },
     { title: 'Unit cost', value: 'unitCost', sortable: false, align: 'end', width: 150 },
+    { title: 'Margin', value: 'margin', sortable: false, align: 'center', width: 100 },
     { title: 'Subtotal', value: 'subtotal', sortable: false, align: 'end', width: 120 },
     { title: '', value: 'actions', sortable: false, width: 48 },
   ] as const
@@ -516,26 +514,16 @@
     return active.filter(p => p.supplierId === selectedSupplierId.value)
   })
 
-  const isWholesaleReceiving = computed(() =>
-    branchStore.branches.find(b => b.id === selectedBranchId.value)?.type === 'wholesale',
-  )
-
-  // Multi-select model for the product picker — bidirectionally synced with
-  // `lines`, so picking several products adds several lines at once, and
-  // removing a chip removes that line, rather than the old one-at-a-time
-  // autocomplete that reset itself after every single pick.
-  const pickerSelection = computed<number[]>({
-    get: () => lines.value.map(line => line.productId),
-    set: ids => {
-      for (const id of ids) {
-        if (!lines.value.some(line => line.productId === id)) addLine(id)
-      }
-      lines.value = lines.value.filter(line => ids.includes(line.productId))
-    },
-  })
-
   const purchaseSubtotal = computed(() =>
     lines.value.reduce((sum, line) => sum + line.quantity * line.unitCost, 0),
+  )
+
+  const secondaryTotal = computed(() =>
+    formatSecondaryCurrency(
+      purchaseSubtotal.value,
+      settingsState.currency.secondary,
+      settingsState.currency.exchangeRate,
+    ),
   )
 
   const filteredPurchases = computed(() => {
@@ -555,15 +543,16 @@
   })
 
   // Non-blocking warning shown in the void dialog when an active purchase
-  // recorded later touched the same product+branch as the one being voided
-  // — cost restoration on void isn't order-independent (see usePurchases.ts).
+  // recorded later touched the same product as the one being voided — cost
+  // is product-global now (not branch-scoped), so a newer purchase at ANY
+  // branch counts, not just the same one. Cost restoration on void isn't
+  // order-independent (see usePurchases.ts).
   const voidWarning = computed(() => {
     if (!detailPurchase.value) return null
     const purchase = detailPurchase.value
     const conflicts = purchases.value.filter(other =>
       other.id !== purchase.id
       && other.status === 'completed'
-      && other.branchId === purchase.branchId
       && new Date(other.createdAt).getTime() > new Date(purchase.createdAt).getTime()
       && other.items.some(item => purchase.items.some(pi => pi.productId === item.productId)),
     )
@@ -575,32 +564,26 @@
     return products.value.find(p => p.id === productId)?.name ?? `#${productId}`
   }
 
-  function lineUomLabel (productId: number, uom: Uom) {
-    if (uom !== 'batch') return ''
-    return products.value.find(p => p.id === productId)?.batchUnitName ?? 'batch'
+  function productUnitName (productId: number | null) {
+    return products.value.find(p => p.id === productId)?.batchUnitName ?? ''
   }
 
-  // Whether this product can be received by the batch on the currently
-  // selected branch — only when that branch is wholesale, the product is
-  // sold wholesale, and it has a batch size configured.
-  function canReceiveAsBatch (productId: number) {
-    if (!isWholesaleReceiving.value) return false
-    const product = products.value.find(p => p.id === productId)
-    return Boolean(product?.sellableWholesale && product?.batchSize)
-  }
-
-  // Converts a line's entered quantity/cost (in `uom` units) into the
-  // retail-unit terms receive_purchase_stock always works in.
-  function retailQuantityFor (line: PurchaseLine) {
+  // Margin between the cost being entered on this line and the product's
+  // sell price — a quick sanity check while receiving, not a stored figure.
+  // Null when there's no sell price to compare against.
+  function lineMargin (line: PurchaseLine) {
     const product = products.value.find(p => p.id === line.productId)
-    if (line.uom === 'batch' && product?.batchSize) return line.quantity * product.batchSize
-    return line.quantity
+    if (!product?.price) return null
+    return (product.price - line.unitCost) / product.price
   }
 
-  function retailUnitCostFor (line: PurchaseLine) {
-    const product = products.value.find(p => p.id === line.productId)
-    if (line.uom === 'batch' && product?.batchSize) return roundMoney(line.unitCost / product.batchSize)
-    return line.unitCost
+  // Products still selectable in a given row's dropdown — every pickable
+  // product not already used by another row, plus this row's own current
+  // selection (so switching away from it and back still works).
+  function availableProductsForRow (line: PurchaseLine) {
+    return pickableProducts.value.filter(p =>
+      p.id === line.productId || !lines.value.some(other => other.productId === p.id),
+    )
   }
 
   function supplierName (supplierId: number | null) {
@@ -624,26 +607,44 @@
     })
   }
 
+  // Monotonic local id for table rows — not persisted, just needs to stay
+  // unique within this dialog session.
+  let nextRowId = 0
+
+  function makeLine (productId: number | null): PurchaseLine {
+    return { rowId: nextRowId++, productId, quantity: 0, unitCost: 0 }
+  }
+
+  // Fills in a line's unitCost default from its (now-selected) product's
+  // current cost. Still overridable per line.
+  function applyProductDefaults (line: PurchaseLine) {
+    if (line.productId == null) return
+    const product = products.value.find(p => p.id === line.productId)
+    line.unitCost = product?.cost ?? 0
+  }
+
   // Default quantity 0 (not 1) — bulk-adding many lines at once means the
   // remaining work is typing quantities down a column, not re-editing a
   // default that's almost always wrong for most of the lines.
   function addLine (productId: number) {
     if (lines.value.some(line => line.productId === productId)) return
-    const product = products.value.find(p => p.id === productId)
-    const perUnitCost = selectedBranchId.value ? product?.costByBranch[selectedBranchId.value] : null
-    // Receiving into a wholesale branch defaults to the batch unit when the
-    // product supports one — that's how a wholesale branch is actually
-    // restocked, rather than making the receiver flip the toggle on every
-    // one of 200 lines. Still overridable per line.
-    const uom: Uom = canReceiveAsBatch(productId) ? 'batch' : 'unit'
-    const unitCost = uom === 'batch' && product?.batchSize && perUnitCost != null
-      ? roundMoney(perUnitCost * product.batchSize)
-      : (perUnitCost ?? 0)
-    lines.value.push({ productId, quantity: 0, uom, unitCost })
+    const line = makeLine(productId)
+    applyProductDefaults(line)
+    lines.value.push(line)
   }
 
-  function removeLine (productId: number) {
-    lines.value = lines.value.filter(line => line.productId !== productId)
+  // Adds a blank row so a product can be chosen directly in the table,
+  // rather than through a separate picker above it.
+  function addEmptyLine () {
+    lines.value.push(makeLine(null))
+  }
+
+  function onLineProductChange (line: PurchaseLine) {
+    applyProductDefaults(line)
+  }
+
+  function removeLine (rowId: number) {
+    lines.value = lines.value.filter(line => line.rowId !== rowId)
   }
 
   // The core fix for "200 products from one supplier": once a supplier is
@@ -703,7 +704,9 @@
     if (draft && draft.lines.length > 0) {
       selectedSupplierId.value = draft.supplierId
       selectedBranchId.value = draft.branchId ?? branchStore.activeBranchId ?? branchStore.branches[0]?.id ?? null
-      lines.value = draft.lines
+      // Reassign rowIds rather than trusting the persisted ones — keeps them
+      // unique against `nextRowId` regardless of what an older draft shape saved.
+      lines.value = draft.lines.map(line => ({ ...line, rowId: nextRowId++ }))
       toast.show('Restored your unsaved purchase draft.')
     } else {
       selectedSupplierId.value = null
@@ -727,18 +730,22 @@
       toast.show('Add at least one line to this purchase.', 'warning')
       return
     }
+    if (lines.value.some(line => line.productId == null)) {
+      toast.show('Select a product for every line.', 'warning')
+      return
+    }
+
+    // Every line is guaranteed a product by the check above.
+    const validLines = lines.value as (PurchaseLine & { productId: number })[]
 
     saving.value = true
     const result = await createPurchase(
       selectedBranchId.value,
       selectedSupplierId.value,
-      lines.value.map(line => ({
+      validLines.map(line => ({
         productId: line.productId,
         quantity: line.quantity,
-        uom: line.uom,
         unitCost: line.unitCost,
-        retailQuantity: retailQuantityFor(line),
-        retailUnitCost: retailUnitCostFor(line),
       })),
     )
     saving.value = false
@@ -818,8 +825,10 @@
   vertical-align: middle;
 }
 .purchase-lines-table :deep(.v-field__input) {
-  text-align: right;
   padding-top: 0;
   padding-bottom: 0;
+}
+.purchase-lines-table :deep(.text-right .v-field__input) {
+  text-align: right;
 }
 </style>

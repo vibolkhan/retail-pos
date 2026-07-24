@@ -20,32 +20,34 @@
         <span class="rail-brand-word">Retail POS</span>
       </div>
 
-      <v-menu>
-        <template #activator="{ props: menuProps }">
-          <button
-            aria-label="Switch branch"
-            class="branch-pill"
-            :class="branchStore.isWholesale ? 'branch-pill--wholesale' : 'branch-pill--retail'"
-            type="button"
-            v-bind="menuProps"
-          >
-            <v-icon :icon="branchIcon" size="16" />
-            <span class="bp-name">{{ branchStore.activeBranch?.name ?? 'Branch' }}</span>
-            <v-icon icon="mdi-chevron-down" size="14" />
-          </button>
-        </template>
+      <template v-if="showBranchPicker">
+        <v-menu>
+          <template #activator="{ props: menuProps }">
+            <button
+              aria-label="Switch branch"
+              class="branch-pill"
+              :class="branchStore.isWholesale ? 'branch-pill--wholesale' : 'branch-pill--retail'"
+              type="button"
+              v-bind="menuProps"
+            >
+              <v-icon :icon="branchIcon" size="16" />
+              <span class="bp-name">{{ branchStore.activeBranch?.name ?? 'Branch' }}</span>
+              <v-icon icon="mdi-chevron-down" size="14" />
+            </button>
+          </template>
 
-        <v-list density="compact">
-          <v-list-item
-            v-for="branch in branchStore.branches"
-            :key="branch.id"
-            :active="branch.id === branchStore.activeBranchId"
-            :prepend-icon="branch.type === 'wholesale' ? 'mdi-warehouse' : 'mdi-store'"
-            :title="branch.name"
-            @click="branchStore.setActiveBranch(branch.id)"
-          />
-        </v-list>
-      </v-menu>
+          <v-list density="compact">
+            <v-list-item
+              v-for="branch in branchStore.branches"
+              :key="branch.id"
+              :active="branch.id === branchStore.activeBranchId"
+              :prepend-icon="branch.type === 'wholesale' ? 'mdi-warehouse' : 'mdi-store'"
+              :title="branch.name"
+              @click="branchStore.setActiveBranch(branch.id)"
+            />
+          </v-list>
+        </v-menu>
+      </template>
 
       <v-list v-model:opened="openGroups" class="rail-nav" density="compact" nav>
         <template v-for="item in navigationItems" :key="item.to">
@@ -206,32 +208,34 @@
     </v-app-bar>
 
     <v-navigation-drawer v-model="mobileDrawerOpen" class="app-rail" location="left" temporary>
-      <v-menu>
-        <template #activator="{ props: menuProps }">
-          <button
-            aria-label="Switch branch"
-            class="branch-pill"
-            :class="branchStore.isWholesale ? 'branch-pill--wholesale' : 'branch-pill--retail'"
-            type="button"
-            v-bind="menuProps"
-          >
-            <v-icon :icon="branchIcon" size="16" />
-            <span class="bp-name">{{ branchStore.activeBranch?.name ?? 'Branch' }}</span>
-            <v-icon icon="mdi-chevron-down" size="14" />
-          </button>
-        </template>
+      <template v-if="showBranchPicker">
+        <v-menu>
+          <template #activator="{ props: menuProps }">
+            <button
+              aria-label="Switch branch"
+              class="branch-pill"
+              :class="branchStore.isWholesale ? 'branch-pill--wholesale' : 'branch-pill--retail'"
+              type="button"
+              v-bind="menuProps"
+            >
+              <v-icon :icon="branchIcon" size="16" />
+              <span class="bp-name">{{ branchStore.activeBranch?.name ?? 'Branch' }}</span>
+              <v-icon icon="mdi-chevron-down" size="14" />
+            </button>
+          </template>
 
-        <v-list density="compact">
-          <v-list-item
-            v-for="branch in branchStore.branches"
-            :key="branch.id"
-            :active="branch.id === branchStore.activeBranchId"
-            :prepend-icon="branch.type === 'wholesale' ? 'mdi-warehouse' : 'mdi-store'"
-            :title="branch.name"
-            @click="branchStore.setActiveBranch(branch.id)"
-          />
-        </v-list>
-      </v-menu>
+          <v-list density="compact">
+            <v-list-item
+              v-for="branch in branchStore.branches"
+              :key="branch.id"
+              :active="branch.id === branchStore.activeBranchId"
+              :prepend-icon="branch.type === 'wholesale' ? 'mdi-warehouse' : 'mdi-store'"
+              :title="branch.name"
+              @click="branchStore.setActiveBranch(branch.id)"
+            />
+          </v-list>
+        </v-menu>
+      </template>
 
       <v-list v-model:opened="openGroups" class="rail-nav" density="compact" nav>
         <template v-for="item in navigationItems" :key="item.to">
@@ -306,6 +310,15 @@
     branchStore.isWholesale ? 'mdi-warehouse' : 'mdi-store',
   )
 
+  // The branch/warehouse picker is salesperson-only on POS/Cart (see
+  // router/index.ts's branchPickerRoles) — admin/manager stop seeing it
+  // specifically there, but keep it everywhere else, same as today.
+  const showBranchPicker = computed(() => {
+    const allowedRoles = route.meta.branchPickerRoles
+    if (!allowedRoles) return true
+    return authStore.role != null && allowedRoles.includes(authStore.role)
+  })
+
   // Mobile chrome (app bar + bottom nav) recolors to the active branch's
   // channel — teal for retail, copper for wholesale — the same signal the
   // rail's branch pill and every stock/channel chip carry elsewhere.
@@ -340,7 +353,7 @@
         { title: 'Customers', icon: 'mdi-account-multiple-outline', to: '/customers', roles: ['admin', 'manager'] },
         { title: 'P&L', icon: 'mdi-finance', to: '/pnl', roles: ['admin', 'manager'] },
         { title: 'Category', icon: 'mdi-shape-outline', to: '/configuration/categories', roles: ['admin', 'manager'] },
-        { title: 'Batch Unit', icon: 'mdi-package-variant-closed', to: '/configuration/batch-units', roles: ['admin', 'manager'] },
+        { title: 'Unit', icon: 'mdi-package-variant-closed', to: '/configuration/batch-units', roles: ['admin', 'manager'] },
         { title: 'Product', icon: 'mdi-package-variant', to: '/configuration/products', roles: ['admin', 'manager'] },
         { title: 'Supplier', icon: 'mdi-truck-outline', to: '/configuration/suppliers', roles: ['admin', 'manager'] },
       ],

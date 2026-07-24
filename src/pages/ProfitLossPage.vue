@@ -283,6 +283,56 @@
       </v-col>
     </v-row>
 
+    <v-alert v-if="!loading && summary.itemsMissingCost > 0" class="mb-6" type="info" variant="tonal">
+      COGS/Gross Profit below don't include {{ summary.itemsMissingCost }} sale line(s) in this range with no
+      recorded cost — sold before cost tracking was added, or for a product never received through a purchase.
+      Those lines count as $0 cost rather than an estimate.
+    </v-alert>
+
+    <v-row class="mb-6">
+      <v-col cols="6" md="4">
+        <v-card class="kpi-tile" rounded="lg" variant="flat">
+          <div class="kpi-top">
+            <span class="kpi-label">COGS</span>
+            <span class="kpi-icon"><v-icon icon="mdi-package-variant-closed" size="16" /></span>
+          </div>
+
+          <div class="kpi-value text-error">
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <template v-else>-{{ formatCurrency(summary.cogs) }}</template>
+          </div>
+        </v-card>
+      </v-col>
+
+      <v-col cols="6" md="4">
+        <v-card class="kpi-tile kpi-tile--highlight" rounded="lg" variant="flat">
+          <div class="kpi-top">
+            <span class="kpi-label">Gross profit</span>
+            <span class="kpi-icon"><v-icon icon="mdi-finance" size="16" /></span>
+          </div>
+
+          <div class="kpi-value text-primary">
+            <v-skeleton-loader v-if="loading" type="text" width="70" />
+            <template v-else>{{ formatCurrency(summary.grossProfit) }}</template>
+          </div>
+        </v-card>
+      </v-col>
+
+      <v-col cols="6" md="4">
+        <v-card class="kpi-tile" rounded="lg" variant="flat">
+          <div class="kpi-top">
+            <span class="kpi-label">Margin</span>
+            <span class="kpi-icon"><v-icon icon="mdi-percent-outline" size="16" /></span>
+          </div>
+
+          <div class="kpi-value">
+            <v-skeleton-loader v-if="loading" type="text" width="50" />
+            <template v-else>{{ formatPercent(summary.margin) }}</template>
+          </div>
+        </v-card>
+      </v-col>
+    </v-row>
+
     <!-- Daily breakdown -->
     <v-card class="mb-6" rounded="lg" variant="flat">
       <v-card-title class="section-title">Daily breakdown</v-card-title>
@@ -317,6 +367,14 @@
 
         <template #item.tax="{ item }">
           <span class="price-mono">{{ formatCurrency(item.tax) }}</span>
+        </template>
+
+        <template #item.cogs="{ item }">
+          <span class="price-mono text-error">-{{ formatCurrency(item.cogs) }}</span>
+        </template>
+
+        <template #item.grossProfit="{ item }">
+          <span class="price-mono">{{ formatCurrency(item.grossProfit) }}</span>
         </template>
 
         <template #item.netRevenue="{ item }">
@@ -390,7 +448,7 @@
   import { useSettings } from '@/composables/useSettings'
   import { getAllRefunds, getSales } from '@/composables/useSupabase'
   import { useBranchStore } from '@/stores/branch'
-  import { formatCurrency, formatCurrencyAs } from '@/utils/currency'
+  import { formatCurrency, formatCurrencyAs, formatPercent } from '@/utils/currency'
 
   const branchStore = useBranchStore()
   const { state: settingsState } = useSettings()
@@ -420,6 +478,8 @@
     { title: 'Gross Sales', value: 'grossSales', sortable: true },
     { title: 'Discounts', value: 'discounts', sortable: true },
     { title: 'Tax', value: 'tax', sortable: true },
+    { title: 'COGS', value: 'cogs', sortable: true },
+    { title: 'Gross Profit', value: 'grossProfit', sortable: true },
     { title: 'Net Revenue', value: 'netRevenue', sortable: true },
   ] as const
 
@@ -487,6 +547,54 @@
     return refundsBySaleId.value.get(saleId) ?? 0
   }
 
+  // Dollar cost of one sale line: costPrice is a snapshot taken at sale time
+  // (see SaleItem.costPrice). Every product sells as one unit now, so COGS
+  // is simply costPrice * quantity — except a *historical* sale recorded
+  // before this redesign may still carry a legacy `batchSize` key in its
+  // stored jsonb (not part of the current type), in which case that sale's
+  // costPrice was a per-retail-unit figure and needs that multiplier to
+  // stay correct; new sales never have this key, so the multiplier is
+  // always 1 for them. Sales recorded before costPrice existed at all have
+  // no costPrice and contribute 0 (see itemsMissingCost below, surfaced in
+  // the UI rather than silently understating COGS).
+  function lineCogs (item: Sale['items'][number]) {
+    if (item.costPrice == null) return 0
+    const legacyBatchSize = (item as { batchSize?: unknown }).batchSize
+    const multiplier = typeof legacyBatchSize === 'number' && legacyBatchSize > 0 ? legacyBatchSize : 1
+    return item.costPrice * multiplier * item.quantity
+  }
+
+  const salesById = computed(() => {
+    const map = new Map<string, Sale>()
+    for (const sale of sales.value) map.set(sale.id, sale)
+    return map
+  })
+
+  // COGS reversed by refunds/voids per sale id — mirrors refundsBySaleId,
+  // but computed from the ORIGINAL sale's line costPrice (not looked up
+  // fresh), since that's the cost that was actually recognized at sale time.
+  const refundedCogsBySaleId = computed(() => {
+    const map = new Map<string, number>()
+    for (const refund of refunds.value) {
+      const sale = salesById.value.get(refund.saleId)
+      if (!sale) continue
+      let cogs = 0
+      for (const refundItem of refund.items) {
+        const saleItem = sale.items.find(item => item.productId === refundItem.productId)
+        if (!saleItem || saleItem.costPrice == null) continue
+        const legacyBatchSize = (saleItem as { batchSize?: unknown }).batchSize
+        const multiplier = typeof legacyBatchSize === 'number' && legacyBatchSize > 0 ? legacyBatchSize : 1
+        cogs += saleItem.costPrice * multiplier * refundItem.quantity
+      }
+      map.set(refund.saleId, (map.get(refund.saleId) ?? 0) + cogs)
+    }
+    return map
+  })
+
+  function refundedCogs (saleId: string) {
+    return refundedCogsBySaleId.value.get(saleId) ?? 0
+  }
+
   const summary = computed(() => {
     const grossSales = filteredSales.value.reduce((sum, sale) => sum + sale.subtotal, 0)
     const discounts = filteredSales.value.reduce((sum, sale) => sum + sale.discount, 0)
@@ -500,6 +608,18 @@
       0,
     )
 
+    const grossCogs = filteredSales.value.reduce(
+      (sum, sale) => sum + sale.items.reduce((itemSum, item) => itemSum + lineCogs(item), 0),
+      0,
+    )
+    const refundedCogsTotal = filteredSales.value.reduce((sum, sale) => sum + refundedCogs(sale.id), 0)
+    const netCogs = grossCogs - refundedCogsTotal
+    const grossProfit = netRevenue - netCogs
+    const itemsMissingCost = filteredSales.value.reduce(
+      (sum, sale) => sum + sale.items.filter(item => item.costPrice == null).length,
+      0,
+    )
+
     return {
       grossSales,
       discounts,
@@ -510,6 +630,10 @@
       count,
       average: count > 0 ? netRevenue / count : 0,
       itemsSold,
+      cogs: netCogs,
+      grossProfit,
+      margin: netRevenue > 0 ? grossProfit / netRevenue : 0,
+      itemsMissingCost,
     }
   })
 
@@ -529,16 +653,20 @@
   })
 
   const dailyBreakdown = computed(() => {
-    const map = new Map<string, { date: string, count: number, grossSales: number, discounts: number, tax: number, netRevenue: number }>()
+    const map = new Map<string, { date: string, count: number, grossSales: number, discounts: number, tax: number, cogs: number, grossProfit: number, netRevenue: number }>()
 
     for (const sale of filteredSales.value) {
       const key = new Date(sale.date).toISOString().slice(0, 10)
-      const row = map.get(key) ?? { date: key, count: 0, grossSales: 0, discounts: 0, tax: 0, netRevenue: 0 }
+      const row = map.get(key) ?? { date: key, count: 0, grossSales: 0, discounts: 0, tax: 0, cogs: 0, grossProfit: 0, netRevenue: 0 }
+      const netRevenueDelta = sale.grandTotal - refundedAmount(sale.id)
+      const cogsDelta = sale.items.reduce((sum, item) => sum + lineCogs(item), 0) - refundedCogs(sale.id)
       row.count += 1
       row.grossSales += sale.subtotal
       row.discounts += sale.discount
       row.tax += sale.tax
-      row.netRevenue += sale.grandTotal - refundedAmount(sale.id)
+      row.cogs += cogsDelta
+      row.grossProfit += netRevenueDelta - cogsDelta
+      row.netRevenue += netRevenueDelta
       map.set(key, row)
     }
 
@@ -703,6 +831,9 @@
         ['Net Sales', formatCurrency(summary.value.netSales)],
         ['Tax Collected', formatCurrency(summary.value.tax)],
         ['Refunds', `-${formatCurrency(summary.value.refunds)}`],
+        ['COGS', `-${formatCurrency(summary.value.cogs)}`],
+        ['Gross Profit', formatCurrency(summary.value.grossProfit)],
+        ['Margin', formatPercent(summary.value.margin)],
         ['Net Revenue', formatCurrency(summary.value.netRevenue)],
         ['Transactions', String(summary.value.count)],
         ['Items Sold', String(summary.value.itemsSold)],
@@ -716,13 +847,15 @@
 
     autoTable(doc, {
       startY: afterSummaryY,
-      head: [['Date', 'Transactions', 'Gross Sales', 'Discounts', 'Tax', 'Net Revenue']],
+      head: [['Date', 'Transactions', 'Gross Sales', 'Discounts', 'Tax', 'COGS', 'Gross Profit', 'Net Revenue']],
       body: dailyBreakdown.value.map(row => [
         formatDateLabel(row.date),
         String(row.count),
         formatCurrency(row.grossSales),
         `-${formatCurrency(row.discounts)}`,
         formatCurrency(row.tax),
+        `-${formatCurrency(row.cogs)}`,
+        formatCurrency(row.grossProfit),
         formatCurrency(row.netRevenue),
       ]),
       theme: 'striped',

@@ -45,29 +45,12 @@ export function useCart () {
     item.discount = Math.min(item.discount ?? 0, lineTotal)
   }
 
-  // Wholesale sells by the batch (unit name varies per product, e.g. Case/Box)
   function stockMessage (product: Product) {
-    const unit = branchStore.isWholesale ? ` ${product.batchUnitName ?? 'batch'}` : ''
+    const unit = product.batchUnitName ? ` ${product.batchUnitName}` : ''
     return `Only ${product.stock}${unit} ${product.name} available in stock.`
   }
 
   function addToCart (product: Product, quantity = 1) {
-    const isWholesale = branchStore.isWholesale
-
-    if (isWholesale && (!product.sellableWholesale || !product.batchPrice || !product.batchSize)) {
-      return {
-        ok: false,
-        message: `${product.name} is not available for wholesale.`,
-      }
-    }
-
-    if (!isWholesale && !product.sellableRetail) {
-      return {
-        ok: false,
-        message: `${product.name} is not available in the retail shop.`,
-      }
-    }
-
     if (product.stock <= 0) {
       return { ok: false, message: `${product.name} is out of stock.` }
     }
@@ -97,12 +80,11 @@ export function useCart () {
       categoryName: product.categoryName ?? 'Uncategorized',
       image: product.image,
       quantity: qty,
-      unitPrice: isWholesale ? product.batchPrice! : product.price,
-      uom: isWholesale ? 'batch' : 'unit',
-      batchUnit: product.batchUnitName ?? null,
-      batchSize: product.batchSize,
+      unitPrice: product.price,
+      unitName: product.batchUnitName ?? null,
       stock: product.stock,
       discount: 0,
+      costPrice: product.cost,
     })
 
     return { ok: true, message: `${product.name} added to cart.` }
@@ -256,10 +238,9 @@ export function useCart () {
         name: item.name,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        uom: item.uom,
-        batchUnit: item.batchUnit,
-        batchSize: item.batchSize,
+        unitName: item.unitName,
         discount: item.discount ?? 0,
+        costPrice: item.costPrice,
       })),
       subtotal: saleSubtotal,
       discount: totalDiscount,

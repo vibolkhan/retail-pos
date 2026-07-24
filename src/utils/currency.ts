@@ -7,6 +7,18 @@ export function formatCurrency (value: number) {
   return currencyFormatter.format(value)
 }
 
+const percentFormatter = new Intl.NumberFormat('en-US', {
+  style: 'percent',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+})
+
+// Formats a ratio (e.g. 0.15 -> "15%"), as used for margin figures across
+// Purchase/Inventory/Profit & Loss.
+export function formatPercent (ratio: number) {
+  return percentFormatter.format(ratio)
+}
+
 const secondaryFormatters = new Map<string, Intl.NumberFormat>()
 
 // Formats an amount that's already denominated in the given currency code

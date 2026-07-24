@@ -46,14 +46,11 @@ export interface LoyaltySettings {
 const CURRENCY_SETTINGS_KEY = 'currency'
 const LOYALTY_SETTINGS_KEY = 'loyalty'
 
-// Product with stock AND last-purchase cost broken out per branch (for the
-// Inventory page, Configuration > Products, and the Purchase page's product
-// picker). costByBranch stays null for a branch until the product has ever
-// been purchased into it — cost of goods lives on branch_stock, never on
-// Product itself.
+// Product with stock broken out per branch (for the Inventory page and
+// Configuration > Products). Cost/price are plain columns on Product
+// itself now (global, not per-branch) — only stock still varies by branch.
 export type InventoryProduct = Product & {
   stockByBranch: Record<number, number>
-  costByBranch: Record<number, number | null>
 }
 
 // Helper to handle Supabase errors
@@ -257,8 +254,7 @@ export async function getProducts (branchId: number): Promise<Product[]> {
   return (products as Product[]).map(p => ({
     ...p,
     categoryName: categoryMap.get(p.categoryId) ?? '',
-    batchUnitName: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.name : undefined,
-    batchUnitUnit: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.unit : undefined,
+    batchUnitName: batchUnitMap.get(p.batchUnitId)?.name,
     supplierName: p.supplierId ? supplierMap.get(p.supplierId) : undefined,
     stock: stockMap.get(p.id) ?? 0,
   }))
@@ -303,27 +299,20 @@ export async function getInventoryProducts (): Promise<InventoryProduct[]> {
     }
   }
   const stockByProduct = new Map<number, Record<number, number>>()
-  const costByProduct = new Map<number, Record<number, number | null>>()
   if (stocks) {
     for (const row of stocks) {
       const stockEntry = stockByProduct.get(row.productId) ?? {}
       stockEntry[row.branchId] = row.stock
       stockByProduct.set(row.productId, stockEntry)
-
-      const costEntry = costByProduct.get(row.productId) ?? {}
-      costEntry[row.branchId] = row.cost
-      costByProduct.set(row.productId, costEntry)
     }
   }
   return (products as Product[]).map(p => ({
     ...p,
     categoryName: categoryMap.get(p.categoryId) ?? '',
-    batchUnitName: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.name : undefined,
-    batchUnitUnit: p.batchUnitId ? batchUnitMap.get(p.batchUnitId)?.unit : undefined,
+    batchUnitName: batchUnitMap.get(p.batchUnitId)?.name,
     supplierName: p.supplierId ? supplierMap.get(p.supplierId) : undefined,
     stock: 0,
     stockByBranch: stockByProduct.get(p.id) ?? {},
-    costByBranch: costByProduct.get(p.id) ?? {},
   }))
 }
 
@@ -331,7 +320,7 @@ async function saveBranchStock (productId: number, stocks: BranchStockInput[]) {
   if (stocks.length === 0) {
     return
   }
-  await saveBranchStockBulk(stocks.map(({ branchId, stock }) => ({ productId, branchId, stock })))
+  await saveBranchStockBulk(stocks.map(s => ({ productId, ...s })))
 }
 
 // Bulk variant used by the Excel import path (useInventoryExcel.ts) to
@@ -417,10 +406,26 @@ export async function updateProductInventory (
   return product
 }
 
-// Un-deletes a product previously fully soft-deleted (deletedAt set). No UI
-// surface sets deletedAt anymore — Inventory's own "delete" only flips a
-// branch/channel's sellable flag (see updateProductInventory) — so this only
-// matters for pre-existing rows already in that legacy state.
+// Soft-deletes a product from the whole catalog (every branch at once —
+// there's no more per-branch/channel visibility toggle now that retail vs
+// wholesale selling doesn't exist). Keeps its branch_stock rows intact so a
+// Restore doesn't lose stock history.
+export async function deleteProductInventory (id: number): Promise<void> {
+  const { data, error } = await supabase
+    .from('products')
+    .update({ deletedAt: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+  handleError(error)
+  if (!data || data.length === 0) {
+    throw new Error(
+      'Product was not deleted — no matching row was updated (check update permissions/RLS policy on "products").',
+    )
+  }
+}
+
+// Un-deletes a product previously soft-deleted via deleteProductInventory
+// (or a pre-existing legacy row already in that state).
 export async function restoreProductInventory (id: number): Promise<void> {
   const { data, error } = await supabase
     .from('products')

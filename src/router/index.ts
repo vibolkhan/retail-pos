@@ -26,6 +26,11 @@ declare module 'vue-router' {
   interface RouteMeta {
     roles?: Role[]
     public?: boolean
+    // When set, AppHeader's branch/warehouse-switcher pill only renders for
+    // these roles while on this route. Omitted (the default, everywhere
+    // except /pos and /cart) means "no restriction — show it for anyone who
+    // can reach this route," i.e. today's universal behavior is unchanged.
+    branchPickerRoles?: Role[]
   }
 }
 
@@ -41,12 +46,12 @@ const router = createRouter({
     {
       path: '/pos',
       component: PosPage,
-      meta: { roles: ['admin', 'manager', 'salesperson'] },
+      meta: { roles: ['admin', 'manager', 'salesperson'], branchPickerRoles: ['salesperson'] },
     },
     {
       path: '/cart',
       component: CartPage,
-      meta: { roles: ['admin', 'manager', 'salesperson'] },
+      meta: { roles: ['admin', 'manager', 'salesperson'], branchPickerRoles: ['salesperson'] },
     },
     {
       path: '/inventory',

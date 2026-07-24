@@ -115,6 +115,35 @@
                         variant="outlined"
                       />
                     </v-col>
+
+                    <v-col cols="6">
+                      <v-text-field
+                        v-model="form.brand"
+                        density="comfortable"
+                        label="Brand (optional)"
+                        variant="outlined"
+                      />
+                    </v-col>
+
+                    <v-col cols="6">
+                      <v-text-field
+                        v-model="form.expiryDate"
+                        density="comfortable"
+                        label="Expiry date (optional)"
+                        type="date"
+                        variant="outlined"
+                      />
+                    </v-col>
+
+                    <v-col cols="12">
+                      <v-textarea
+                        v-model="form.description"
+                        density="comfortable"
+                        label="Description (optional)"
+                        rows="2"
+                        variant="outlined"
+                      />
+                    </v-col>
                   </v-row>
                 </v-col>
               </v-row>
@@ -126,107 +155,62 @@
 
             <section class="form-section">
               <div class="form-section-header">
-                <v-icon icon="mdi-storefront-outline" size="18" />
-                <span>Sales channels</span>
-              </div>
-
-              <v-row>
-                <v-col cols="12" md="6">
-                  <label class="channel-toggle" :class="{ 'is-active': form.sellableRetail }">
-                    <div>
-                      <div class="font-weight-medium">Retail shop</div>
-
-                      <div class="text-caption text-medium-emphasis">
-                        Sold by the unit to walk-in customers
-                      </div>
-                    </div>
-
-                    <v-switch
-                      v-model="form.sellableRetail"
-                      color="primary"
-                      hide-details
-                      inset
-                    />
-                  </label>
-                </v-col>
-
-                <v-col cols="12" md="6">
-                  <label class="channel-toggle" :class="{ 'is-active': form.sellableWholesale }">
-                    <div>
-                      <div class="font-weight-medium">Wholesale</div>
-
-                      <div class="text-caption text-medium-emphasis">
-                        Sold by the batch to bulk buyers
-                      </div>
-                    </div>
-
-                    <v-switch
-                      v-model="form.sellableWholesale"
-                      color="wholesale"
-                      hide-details
-                      inset
-                    />
-                  </label>
-                </v-col>
-              </v-row>
-            </section>
-
-            <v-divider class="form-section-divider" />
-
-            <section class="form-section">
-              <div class="form-section-header">
                 <v-icon icon="mdi-currency-usd" size="18" />
-                <span>Pricing</span>
+                <span>Pricing &amp; unit</span>
               </div>
 
               <v-row>
-                <v-col cols="12" :md="form.sellableWholesale ? 4 : 6">
+                <v-col cols="12" md="4">
+                  <v-select
+                    v-model="form.batchUnitId"
+                    density="comfortable"
+                    item-title="name"
+                    item-value="id"
+                    :items="batchUnits"
+                    variant="outlined"
+                  >
+                    <template #label>
+                      Unit <span class="required-asterisk">*</span>
+                    </template>
+                  </v-select>
+                </v-col>
+
+                <v-col cols="12" md="4">
                   <v-text-field
                     v-model.number="form.price"
                     density="comfortable"
-                    label="Unit price"
+                    label="Price"
                     min="0"
                     prefix="$"
                     type="number"
                     variant="outlined"
-                    @update:model-value="onUnitPriceChanged"
                   />
                 </v-col>
 
-                <template v-if="form.sellableWholesale">
-                  <v-col cols="12" md="4">
-                    <v-select
-                      v-model="form.batchUnitId"
-                      density="comfortable"
-                      :hint="selectedBatchUnit ? `${selectedBatchUnit.unit} units per batch` : ''"
-                      :item-title="batchUnitLabel"
-                      item-value="id"
-                      :items="batchUnits"
-                      persistent-hint
-                      variant="outlined"
-                      @update:model-value="onBatchUnitSelected"
-                    >
-                      <template #label>
-                        Wholesale batch unit <span class="required-asterisk">*</span>
-                      </template>
-                    </v-select>
-                  </v-col>
+                <v-col cols="12" md="4">
+                  <v-text-field
+                    v-model.number="form.cost"
+                    density="comfortable"
+                    label="Cost (optional)"
+                    min="0"
+                    prefix="$"
+                    type="number"
+                    variant="outlined"
+                  />
+                </v-col>
 
-                  <v-col cols="12" md="4">
-                    <v-text-field
-                      v-model.number="form.batchPrice"
-                      density="comfortable"
-                      min="0"
-                      prefix="$"
-                      type="number"
-                      variant="outlined"
-                    >
-                      <template #label>
-                        Batch price <span class="required-asterisk">*</span>
-                      </template>
-                    </v-text-field>
-                  </v-col>
-                </template>
+                <v-col cols="12" md="6">
+                  <v-text-field
+                    v-model.number="form.lowStockThreshold"
+                    density="comfortable"
+                    hint="Alerts when stock at a branch falls to or below this"
+                    label="Low stock threshold"
+                    min="0"
+                    persistent-hint
+                    type="number"
+                    variant="outlined"
+                  />
+                </v-col>
               </v-row>
             </section>
           </template>
@@ -242,15 +226,15 @@
 
               <v-row>
                 <v-col
-                  v-for="branch in visibleStockBranches"
+                  v-for="branch in branches"
                   :key="branch.id"
                   cols="12"
-                  md="4"
+                  md="6"
                 >
                   <v-text-field
                     v-model.number="form.stocks[branch.id]"
                     density="comfortable"
-                    :label="`${branch.name} stock${branch.type === 'wholesale' ? ` (${selectedBatchUnit?.name || 'batch'})` : ' (units)'}`"
+                    :label="`${branch.name} stock`"
                     min="0"
                     :prepend-inner-icon="branch.type === 'wholesale' ? 'mdi-warehouse' : 'mdi-store-outline'"
                     type="number"
@@ -379,24 +363,16 @@
   const toast = useToast()
   const { state: onlineState } = useOnline()
 
-  function batchUnitLabel (batchUnit: BatchUnit) {
-    return `${batchUnit.name} (${batchUnit.unit})`
-  }
-
   const {
     form,
     mode,
     saving,
     imageFile: _imageFile,
     imagePreviewUrl,
-    selectedBatchUnit,
-    visibleStockBranches,
     loadForCreate,
     loadForEdit,
     resetImageState,
     setCroppedImage,
-    onBatchUnitSelected,
-    onUnitPriceChanged,
     submit,
   } = useProductForm({
     categories: toRef(props, 'categories'),
@@ -541,25 +517,6 @@
 }
 .form-section-divider {
   margin-block: 8px 24px;
-}
-.channel-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  height: 100%;
-  padding: 14px 16px;
-  border-radius: 12px;
-  border: 1.5px solid rgba(var(--v-theme-on-surface), 0.12);
-  cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
-}
-.channel-toggle:hover {
-  border-color: rgba(var(--v-theme-primary), 0.4);
-}
-.channel-toggle.is-active {
-  border-color: rgb(var(--v-theme-primary));
-  background: rgba(var(--v-theme-primary), 0.06);
 }
 .cropper-wrap {
   height: 360px;

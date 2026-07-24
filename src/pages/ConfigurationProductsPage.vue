@@ -86,24 +86,12 @@
         <span v-else class="text-medium-emphasis">—</span>
       </template>
 
-      <template #item.channels="{ item }">
-        <div class="d-flex ga-1">
-          <v-chip
-            :color="item.sellableRetail ? 'primary' : 'grey'"
-            size="small"
-            variant="tonal"
-          >
-            Retail
-          </v-chip>
+      <template #item.batchUnitName="{ item }">
+        <v-chip v-if="item.batchUnitName" size="small" variant="tonal">
+          {{ item.batchUnitName }}
+        </v-chip>
 
-          <v-chip
-            :color="item.sellableWholesale ? 'wholesale' : 'grey'"
-            size="small"
-            variant="tonal"
-          >
-            Wholesale
-          </v-chip>
-        </div>
+        <span v-else class="text-medium-emphasis">—</span>
       </template>
 
       <template #item.actions="{ item }">
@@ -175,7 +163,7 @@
     { title: 'Product', value: 'product', sortable: false },
     { title: 'Category', value: 'categoryName', sortable: true },
     { title: 'Supplier', value: 'supplierName', sortable: true },
-    { title: 'Channels', value: 'channels', sortable: false },
+    { title: 'Unit', value: 'batchUnitName', sortable: true },
     { title: 'Action', value: 'actions', sortable: false, align: 'end' },
   ] as const
 
@@ -206,10 +194,9 @@
   }
 
   // Same enrichment as InventoryPage.vue's onProductCreated/onProductUpdated
-  // — stockByBranch/costByBranch are preserved from the existing row since
-  // this page never touches stock or cost; categoryName/supplierName/
-  // batchUnitName/batchUnitUnit are re-derived since this page can change
-  // categoryId/supplierId/batchUnitId.
+  // — stockByBranch is preserved from the existing row since this page
+  // never touches stock; categoryName/supplierName/batchUnitName are
+  // re-derived since this page can change categoryId/supplierId/batchUnitId.
   function enrichProduct (
     product: Product,
     existing: InventoryProduct | undefined,
@@ -222,10 +209,8 @@
       categoryName,
       supplierName,
       batchUnitName: matchedBatchUnit?.name,
-      batchUnitUnit: matchedBatchUnit?.unit,
       stock: 0,
       stockByBranch: existing?.stockByBranch ?? {},
-      costByBranch: existing?.costByBranch ?? {},
     }
   }
 

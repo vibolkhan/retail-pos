@@ -1,7 +1,7 @@
 <template>
   <v-container class="py-6" fluid>
     <div class="d-flex justify-end ga-2 mb-4">
-      <v-tooltip :disabled="onlineState.isOnline" text="Reconnect to create a batch unit">
+      <v-tooltip :disabled="onlineState.isOnline" text="Reconnect to create a unit">
         <template #activator="{ props }">
           <v-btn
             v-bind="props"
@@ -11,7 +11,7 @@
             variant="flat"
             @click="openCreateDialog"
           >
-            Create Batch Unit
+            Create Unit
           </v-btn>
         </template>
       </v-tooltip>
@@ -52,17 +52,17 @@
       rounded="lg"
     >
       <template #item.unit="{ item }">
-        <v-chip color="wholesale" size="small" variant="tonal">
+        <v-chip color="grey" size="small" variant="tonal">
           {{ item.unit }}
         </v-chip>
       </template>
 
       <template #item.actions="{ item }">
-        <v-tooltip :text="onlineState.isOnline ? 'Edit batch unit' : 'Reconnect to edit this batch unit'">
+        <v-tooltip :text="onlineState.isOnline ? 'Edit unit' : 'Reconnect to edit this unit'">
           <template #activator="{ props }">
             <v-btn
               v-bind="props"
-              aria-label="Edit batch unit"
+              aria-label="Edit unit"
               color="primary"
               :disabled="!onlineState.isOnline"
               icon="mdi-pencil"
@@ -73,11 +73,11 @@
           </template>
         </v-tooltip>
 
-        <v-tooltip :text="onlineState.isOnline ? 'Delete batch unit' : 'Reconnect to delete this batch unit'">
+        <v-tooltip :text="onlineState.isOnline ? 'Delete unit' : 'Reconnect to delete this unit'">
           <template #activator="{ props }">
             <v-btn
               v-bind="props"
-              aria-label="Delete batch unit"
+              aria-label="Delete unit"
               color="error"
               :disabled="!onlineState.isOnline"
               icon="mdi-delete-outline"
@@ -93,10 +93,10 @@
         <v-empty-state
           class="py-8"
           color="primary"
-          headline="No batch units yet"
+          headline="No units yet"
           icon="mdi-package-variant-closed"
-          text="Create a batch unit (e.g. Case, Box, Carton) to use on wholesale products."
-          title="No batch units found"
+          text="Create a unit (e.g. Piece, Case, Box, Kilogram) — every product needs one."
+          title="No units found"
         />
       </template>
     </v-data-table>
@@ -105,7 +105,7 @@
       <v-card>
         <v-form @submit.prevent="saveDialogBatchUnit">
           <v-card-title class="receipt-title">
-            <span class="flex-grow-1">{{ editingBatchUnit ? 'Edit Batch Unit' : 'Create Batch Unit' }}</span>
+            <span class="flex-grow-1">{{ editingBatchUnit ? 'Edit Unit' : 'Create Unit' }}</span>
             <v-btn icon="mdi-close" variant="text" @click="dialogOpen = false" />
           </v-card-title>
 
@@ -117,7 +117,7 @@
               autofocus
               class="mb-3"
               density="comfortable"
-              hint="Shown in the batch unit picker and on receipts, e.g. &quot;Case&quot;"
+              hint="Shown as this product's unit everywhere in the app, e.g. &quot;Piece&quot;, &quot;Box&quot;, &quot;Kilogram&quot;"
               label="Name"
               persistent-hint
               required
@@ -127,11 +127,10 @@
             <v-text-field
               v-model.number="form.unit"
               density="comfortable"
-              hint="Number of retail units in one batch of this preset, e.g. 12"
-              label="Units per batch"
-              min="1"
+              hint="Optional, legacy — no longer used for conversions; safe to leave at 1"
+              label="Units per batch (optional)"
+              min="0"
               persistent-hint
-              required
               type="number"
               variant="outlined"
             />
@@ -157,7 +156,7 @@
     <v-dialog v-model="deleteDialogOpen" max-width="420">
       <v-card v-if="deletingBatchUnit">
         <v-card-title class="receipt-title">
-          <span class="flex-grow-1">Delete Batch Unit</span>
+          <span class="flex-grow-1">Delete Unit</span>
         </v-card-title>
 
         <v-divider />
@@ -211,7 +210,7 @@
 
   const headers = [
     { title: 'Name', value: 'name', sortable: true },
-    { title: 'Units per batch', value: 'unit', sortable: true },
+    { title: 'Units per batch (optional)', value: 'unit', sortable: true },
     { title: 'Action', value: 'actions', sortable: false, align: 'end' },
   ] as const
 
@@ -245,8 +244,8 @@
       toast.show('Name is required.', 'warning')
       return
     }
-    if (!Number.isInteger(unit) || unit < 1) {
-      toast.show('Units per batch must be a whole number of at least 1.', 'warning')
+    if (!Number.isInteger(unit) || unit < 0) {
+      toast.show('Units per batch must be a non-negative whole number.', 'warning')
       return
     }
 
@@ -256,15 +255,15 @@
         const updated = await updateBatchUnit({ id: editingBatchUnit.value.id, name, unit })
         const index = batchUnits.value.findIndex(b => b.id === updated.id)
         if (index !== -1) batchUnits.value[index] = updated
-        toast.show('Batch unit updated.')
+        toast.show('Unit updated.')
       } else {
         const created = await createBatchUnit({ name, unit })
         batchUnits.value.push(created)
-        toast.show('Batch unit created.')
+        toast.show('Unit created.')
       }
       dialogOpen.value = false
     } catch (error) {
-      toast.show(error instanceof Error ? error.message : 'Unable to save batch unit.', 'error')
+      toast.show(error instanceof Error ? error.message : 'Unable to save unit.', 'error')
     } finally {
       saving.value = false
     }
@@ -284,9 +283,9 @@
       await deleteBatchUnit(batchUnit.id)
       batchUnits.value = batchUnits.value.filter(b => b.id !== batchUnit.id)
       deleteDialogOpen.value = false
-      toast.show('Batch unit deleted.')
+      toast.show('Unit deleted.')
     } catch (error) {
-      toast.show(error instanceof Error ? error.message : 'Unable to delete batch unit.', 'error')
+      toast.show(error instanceof Error ? error.message : 'Unable to delete unit.', 'error')
     } finally {
       deleting.value = false
     }
@@ -298,10 +297,10 @@
       const result = await cachedFetch('batchUnits', getBatchUnits, onlineState.isOnline)
       batchUnits.value = result.data
       offlineNotice.value = result.fromCache
-        ? 'Offline — showing cached batch units. Creating, editing, and deleting is disabled until reconnected.'
+        ? 'Offline — showing cached units. Creating, editing, and deleting is disabled until reconnected.'
         : ''
     } catch (error) {
-      toast.show(error instanceof Error ? error.message : 'Unable to load batch units.', 'error')
+      toast.show(error instanceof Error ? error.message : 'Unable to load units.', 'error')
     } finally {
       loading.value = false
     }

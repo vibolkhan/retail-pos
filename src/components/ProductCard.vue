@@ -65,23 +65,23 @@
 
       <div class="mt-auto flex items-center justify-between gap-2">
         <div class="flex flex-col">
-          <strong class="price-mono text-primary">{{ formatCurrency(displayPrice) }}</strong>
+          <strong class="price-mono text-primary">{{ formatCurrency(product.price) }}</strong>
 
           <span v-if="secondaryPrice" class="text-xs text-medium-emphasis price-mono">
             ≈ {{ secondaryPrice }}
           </span>
 
-          <span v-if="wholesale" class="text-xs text-medium-emphasis">
-            / {{ product.batchUnitName ?? 'batch' }} of {{ product.batchSize }}
+          <span v-if="product.batchUnitName" class="text-xs text-medium-emphasis">
+            / {{ product.batchUnitName }}
           </span>
         </div>
 
         <span
           v-if="product.stock > 0"
           class="text-xs font-medium"
-          :class="product.stock <= 5 ? 'text-warning' : 'text-success'"
+          :class="isLowStock(product.stock, product.lowStockThreshold) ? 'text-warning' : 'text-success'"
         >
-          ● {{ product.stock }}{{ wholesale ? ` ${product.batchUnitName ?? 'batch'}` : '' }}
+          ● {{ product.stock }}{{ product.batchUnitName ? ` ${product.batchUnitName}` : '' }}
         </span>
       </div>
     </div>
@@ -93,14 +93,14 @@
   import { computed } from 'vue'
   import { useSettings } from '@/composables/useSettings'
   import { formatCurrency, formatSecondaryCurrency } from '@/utils/currency'
+  import { isLowStock } from '@/utils/stock'
 
   const props = withDefaults(
     defineProps<{
       product: Product
       quantityInCart?: number
-      wholesale?: boolean
     }>(),
-    { quantityInCart: 0, wholesale: false },
+    { quantityInCart: 0 },
   )
 
   defineEmits<{
@@ -109,13 +109,9 @@
 
   const { state: settingsState } = useSettings()
 
-  const displayPrice = computed(() =>
-    props.wholesale ? props.product.batchPrice ?? 0 : props.product.price,
-  )
-
   const secondaryPrice = computed(() =>
     formatSecondaryCurrency(
-      displayPrice.value,
+      props.product.price,
       settingsState.currency.secondary,
       settingsState.currency.exchangeRate,
     ),

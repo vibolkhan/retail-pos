@@ -3,9 +3,12 @@ export interface Category {
   name: string
 }
 
-// Wholesale batch preset (e.g. name "Case", unit 12) — configured on the
-// Configuration > Batch Unit page and referenced by Product.batchUnitId.
-// unit is the number of retail units that make up one batch of this preset.
+// A named unit of sale (e.g. "Piece", "Box", "Kg") — configured on the
+// Configuration > Unit page and referenced by every Product.batchUnitId.
+// `unit` was historically a "retail units per batch" multiplier for
+// wholesale-only products; nothing computes with it anymore now that every
+// product sells as exactly one of these units with no sub-unit conversion —
+// it's kept only as informational/legacy reference data.
 export interface BatchUnit {
   id: number
   name: string
@@ -14,15 +17,15 @@ export interface BatchUnit {
 
 export type BranchType = 'retail' | 'wholesale'
 
+// Branches are physical stock locations ("warehouses") only — `type` is
+// purely a label/icon now and has no effect on pricing, unit, or selling
+// behavior (that used to differ between retail and wholesale branches;
+// every product now sells the same way everywhere).
 export interface Branch {
   id: number
   name: string
   type: BranchType
 }
-
-// Unit of measure a line item is sold in. Retail sells units, wholesale sells batches
-// (the batch's real-world unit name lives in Product.batchUnitId / CartItem.batchUnit).
-export type Uom = 'unit' | 'batch'
 
 export interface Product {
   id: number
@@ -36,25 +39,25 @@ export interface Product {
   // Lets Purchases filter/bulk-add a supplier's whole catalog in one go.
   supplierId: number | null
   supplierName?: string
+  description: string
+  brand: string | null
+  // ISO date/timestamp string, e.g. best-before tracking for perishables.
+  expiryDate: string | null
+  // Per-product low-stock alert threshold; null falls back to
+  // DEFAULT_LOW_STOCK_THRESHOLD (src/utils/stock.ts).
+  lowStockThreshold: number | null
   price: number
-  // Wholesale batch pricing; null when the product has no batch defined.
-  // batchUnitId is a FK into batch_units (Configuration > Batch Unit).
-  // batchUnitName (e.g. "Case") and batchUnitUnit (e.g. 12, the number of
-  // retail units per batch) are joined client-side, like categoryName
-  // above, and are never persisted. batchUnitName is what displays as the
-  // unit label; batchUnitUnit drives the batch price calc and the
-  // retail-stock-vs-batch-quantity validation.
-  batchUnitId: number | null
+  // Cost of goods, a single global value (was per-branch on branch_stock —
+  // see supabase/migrations/20260723100000_add_products_cost_and_new_fields.sql).
+  // Only ever written by receiving a Purchase or editing the product form;
+  // null until the product has either happened.
+  cost: number | null
+  // Every product sells as exactly one unit, chosen from Configuration >
+  // Unit (batch_units table/route name unchanged, only the label is
+  // "Unit" now). batchUnitName is joined client-side, like categoryName.
+  batchUnitId: number
   batchUnitName?: string
-  batchUnitUnit?: number
-  batchSize: number | null
-  batchPrice: number | null
-  // Whether this product may be sold through each channel, independent of
-  // whether batch pricing is configured.
-  sellableRetail: boolean
-  sellableWholesale: boolean
-  // Stock for the branch the product was fetched for, in that branch's
-  // selling unit (retail = units, wholesale = batches)
+  // Stock for the branch the product was fetched for.
   stock: number
   image: string
   // Soft-delete marker; null/undefined means active. Deleted products keep
@@ -70,16 +73,19 @@ export interface CartItem {
   categoryName: string
   image: string
   quantity: number
-  // Per-batch price when uom === 'batch'
   unitPrice: number
-  uom: Uom
-  batchUnit: string | null
-  batchSize: number | null
+  // Snapshot of the product's configured unit name at add-to-cart time, for
+  // display ("$5 / Piece") and carried through to SaleItem.unitName at
+  // checkout. Null only if the product somehow has no unit joined.
+  unitName: string | null
   stock: number
   // Flat discount applied to this line only, clamped to 0..(unitPrice * quantity).
   // Folded into Sale.discount at checkout alongside the cart-level discount;
   // kept per-line here too so the receipt/history can show where it came from.
   discount: number
+  // Snapshot of the product's cost at add-to-cart time, carried through to
+  // SaleItem.costPrice at checkout.
+  costPrice: number | null
 }
 
 export type PaymentMethod = 'Cash' | 'Bank Transfer' | 'QR Payment' | 'Card Payment'
@@ -89,12 +95,21 @@ export interface SaleItem {
   name: string
   quantity: number
   unitPrice: number
-  uom: Uom
-  batchUnit?: string | null
-  batchSize?: number | null
+  // Optional/nullable — sales recorded before this field existed don't
+  // have it; OrderHistory/ReceiptDialog/CartPage fall back gracefully
+  // (see src/utils/legacyUnit.ts) rather than showing "undefined".
+  unitName?: string | null
   // Flat discount applied to this line at checkout; 0 when none. Already
   // folded into Sale.discount — this is kept for receipt/audit detail only.
   discount?: number
+  // Snapshot of the product's cost at the moment this item was sold — not
+  // looked up from the product's *current* cost, since a later purchase can
+  // overwrite it. COGS for this line is simply costPrice * quantity (no
+  // unit conversion — every product sells as one unit). Null/undefined for
+  // sales recorded before this field existed, or for a product never
+  // purchased/cost-entered — Profit & Loss reports those lines' COGS as 0,
+  // not an estimate.
+  costPrice?: number | null
 }
 
 export type SaleStatus = 'completed' | 'voided' | 'partially_refunded' | 'refunded'
@@ -185,38 +200,27 @@ export interface Supplier {
   createdAt?: string
 }
 
-// One received/voided line of a purchase. previousCost is the branch_stock
-// row's cost immediately before this line was applied — captured at
+// One received/voided line of a purchase. previousCost is the product's
+// global cost immediately before this line was applied — captured at
 // receive time by receive_purchase_stock() so void_purchase_stock() can
 // restore it exactly. Cost restoration on void isn't order-independent if
-// a newer purchase has since touched the same product/branch — see
-// usePurchases.ts.
+// a newer purchase of the same product (at ANY branch, not just this one —
+// cost is product-global now) has since landed — see usePurchases.ts.
 export interface PurchaseItem {
   productId: number
-  // Quantity as entered by the receiver, in `uom` — NOT necessarily retail
-  // units. `receive_purchase_stock` always increments branch_stock in
-  // retail units, so a 'batch' line's stock delta is `quantity * batchSize`,
-  // computed client-side in usePurchases.ts before the RPC call; quantity
-  // and uom are both kept here for the receipt/audit trail to read back
-  // correctly (e.g. "50 Case" rather than an opaque "1200").
+  // Quantity in the product's one unit — no conversion needed, since every
+  // product sells/stocks/purchases in exactly the same unit.
   quantity: number
-  uom: Uom
   unitCost: number
-  // The actual retail-unit delta applied to branch_stock.stock —
-  // `quantity * batchSize` at receive time when uom is 'batch', else equal
-  // to `quantity`. Stored (not recomputed from the product's *current*
-  // batchSize) so voidPurchase reverses exactly what was applied even if
-  // the product's batch unit preset changes later.
-  retailQuantity: number
   previousCost: number | null
   subtotal: number
 }
 
 export type PurchaseStatus = 'completed' | 'voided'
 
-// A stock-receiving event: quantity + cost of goods received from a
-// supplier into a branch. Cost of goods lives here and on branch_stock —
-// never on Product, which stays pure master data.
+// A stock-receiving event: quantity received into a branch, at a cost that
+// overwrites the product's single global cost (see Product.cost) — stock
+// stays branch-scoped, cost does not.
 export interface Purchase {
   id: string
   date: string

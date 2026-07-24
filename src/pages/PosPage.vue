@@ -77,7 +77,6 @@
           :product="product"
           :quantity-in-cart="cartQuantities.get(product.id) ?? 0"
           :style="{ '--stagger': index % 12 }"
-          :wholesale="branchStore.isWholesale"
           @add="handleAddToCart"
         />
       </TransitionGroup>
@@ -101,12 +100,6 @@
         title="Nothing matches your filters"
       />
     </Transition>
-
-    <QuantityDialog
-      v-model="quantityDialog"
-      :product="selectedProduct"
-      @confirm="handleAddCases"
-    />
   </v-container>
 </template>
 
@@ -114,7 +107,6 @@
 import type { Category, Product } from '@/types/pos'
 import { computed, onMounted, ref, watch } from 'vue'
 import ProductCard from '@/components/ProductCard.vue'
-import QuantityDialog from '@/components/QuantityDialog.vue'
 import { useCart } from '@/composables/useCart'
 import { cachedFetch } from '@/composables/useOfflineCache'
 import { useOnline } from '@/composables/useOnline'
@@ -128,9 +120,6 @@ const branchStore = useBranchStore()
 const toast = useToast()
 const { state: onlineState } = useOnline()
 const { flush, pendingCount } = useSalesSyncQueue()
-
-const quantityDialog = ref(false)
-const selectedProduct = ref<Product | null>(null)
 
 const products = ref<Product[]>([])
 const categories = ref<Category[]>([])
@@ -157,11 +146,6 @@ const filteredProducts = computed(() => {
   const query = search.value.trim().toLowerCase()
 
   return products.value.filter((product) => {
-    // Each channel only sells products explicitly enabled for it; wholesale
-    // additionally requires batch pricing to be configured.
-    const sellableHere = branchStore.isWholesale
-      ? product.sellableWholesale && !!product.batchSize && !!product.batchPrice
-      : product.sellableRetail
     const matchesCategory = selectedCategory.value
       ? product.categoryId === selectedCategory.value
       : true
@@ -171,7 +155,7 @@ const filteredProducts = computed(() => {
         )
       : true
 
-    return sellableHere && matchesCategory && matchesSearch
+    return matchesCategory && matchesSearch
   }).sort((a, b) => (a.stock === 0 ? 1 : 0) - (b.stock === 0 ? 1 : 0))
 })
 
@@ -195,19 +179,7 @@ watch(pageCount, (count) => {
 })
 
 function handleAddToCart(product: Product) {
-  if (branchStore.isWholesale) {
-    // Wholesale sells by the batch – ask how many
-    selectedProduct.value = product
-    quantityDialog.value = true
-    return
-  }
-
   const result = addToCart(product)
-  toast.show(result.message, result.ok ? 'success' : 'warning')
-}
-
-function handleAddCases(product: Product, quantity: number) {
-  const result = addToCart(product, quantity)
   toast.show(result.message, result.ok ? 'success' : 'warning')
 }
 

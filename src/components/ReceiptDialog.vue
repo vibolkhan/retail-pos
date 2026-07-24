@@ -33,10 +33,7 @@
                 <td>{{ item.name }}</td>
 
                 <td class="text-center">
-                  {{ item.quantity }}{{ item.uom === 'batch' ? ` ${item.batchUnit ?? 'batch'}` : '' }}
-                  <div v-if="item.uom === 'batch' && item.batchSize" class="text-caption text-medium-emphasis">
-                    × {{ item.batchSize }} units
-                  </div>
+                  {{ item.quantity }}{{ legacyUnitLabel(item) ? ` ${legacyUnitLabel(item)}` : '' }}
                 </td>
 
                 <td class="price-mono text-right">
@@ -107,6 +104,7 @@
   import { computed } from 'vue'
   import { useSettings } from '@/composables/useSettings'
   import { formatCurrency, formatSecondaryCurrency } from '@/utils/currency'
+  import { legacyUnitLabel } from '@/utils/legacyUnit'
 
   const props = defineProps<{
     sale: Sale | null

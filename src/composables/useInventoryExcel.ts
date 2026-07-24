@@ -14,10 +14,11 @@ import {
   updateProduct,
   uploadProductImage,
 } from '@/composables/useSupabase'
+import { DEFAULT_LOW_STOCK_THRESHOLD } from '@/utils/stock'
 
 const STOCK_HEADER_PREFIX = 'Stock: '
 const THUMBNAIL_PX = 72
-const REQUIRED_HEADERS = ['Code', 'Barcode', 'Name', 'Category', 'Price']
+const REQUIRED_HEADERS = ['Code', 'Barcode', 'Name', 'Category', 'Price', 'Unit']
 // This is a fixed OOXML namespace identifier (never dereferenced as a URL),
 // not a link — real spreadsheets always declare it as http, not https.
 // eslint-disable-next-line unicorn/prefer-https
@@ -30,12 +31,13 @@ const COLUMNS: Array<{ header: string, key: string, width: number }> = [
   { header: 'Barcode', key: 'barcode', width: 16 },
   { header: 'Name', key: 'name', width: 28 },
   { header: 'Category', key: 'category', width: 18 },
+  { header: 'Brand', key: 'brand', width: 16 },
+  { header: 'Description', key: 'description', width: 30 },
+  { header: 'Unit', key: 'unit', width: 14 },
   { header: 'Price', key: 'price', width: 12 },
-  { header: 'Sellable Retail', key: 'sellableRetail', width: 14 },
-  { header: 'Sellable Wholesale', key: 'sellableWholesale', width: 16 },
-  { header: 'Batch Unit', key: 'batchUnit', width: 12 },
-  { header: 'Batch Size', key: 'batchSize', width: 12 },
-  { header: 'Batch Price', key: 'batchPrice', width: 12 },
+  { header: 'Cost', key: 'cost', width: 12 },
+  { header: 'Expiry Date', key: 'expiryDate', width: 14 },
+  { header: 'Low Stock Threshold', key: 'lowStockThreshold', width: 18 },
 ]
 
 export interface ImportError {
@@ -128,12 +130,13 @@ export async function exportInventoryToExcel (
       barcode: product.barcode,
       name: product.name,
       category: product.categoryName ?? '',
+      brand: product.brand ?? '',
+      description: product.description ?? '',
+      unit: product.batchUnitName ?? '',
       price: product.price,
-      sellableRetail: product.sellableRetail,
-      sellableWholesale: product.sellableWholesale,
-      batchUnit: product.batchUnitName ?? '',
-      batchSize: product.batchSize ?? '',
-      batchPrice: product.batchPrice ?? '',
+      cost: product.cost ?? '',
+      expiryDate: product.expiryDate ?? '',
+      lowStockThreshold: product.lowStockThreshold ?? '',
       ...Object.fromEntries(
         branches.map(branch => [`stock_${branch.id}`, product.stockByBranch[branch.id] ?? 0]),
       ),
@@ -179,14 +182,6 @@ function cellValueToText (value: ExcelJS.CellValue): string {
   return String(value).trim()
 }
 
-function parseBoolean (text: string, fallback: boolean): boolean {
-  const normalized = text.trim().toLowerCase()
-  if (!normalized) {
-    return fallback
-  }
-  return ['true', 'yes', '1', 'y'].includes(normalized)
-}
-
 interface ImportContext {
   categories: Category[]
   batchUnits: BatchUnit[]
@@ -194,41 +189,54 @@ interface ImportContext {
   existingProducts: InventoryProduct[]
 }
 
-interface BatchFields {
-  batchUnitId: number | null
-  batchSize: number | null
-  batchPrice: number | null
+// Every product needs exactly one unit — required on every row, same tier
+// as Code/Name/Category/Price, resolved by name against the Configuration
+// > Unit list (create it there first if it doesn't exist yet).
+function resolveUnitId (unitText: string, batchUnitIdByName: Map<string, number>): number {
+  const trimmed = unitText.trim()
+  if (!trimmed) {
+    throw new Error('Unit is required.')
+  }
+  const unitId = batchUnitIdByName.get(trimmed.toLowerCase())
+  if (!unitId) {
+    throw new Error(`Unknown unit "${unitText}". Create it first in Configuration > Batch Units.`)
+  }
+  return unitId
 }
 
-function parseBatchFields (
-  sellableWholesale: boolean,
-  batchUnitText: string,
-  batchSizeText: string,
-  batchPriceText: string,
-  batchUnitIdByName: Map<string, number>,
-): BatchFields {
-  if (!sellableWholesale) {
-    return { batchUnitId: null, batchSize: null, batchPrice: null }
-  }
+interface OptionalFields {
+  brand: string | null
+  description: string
+  cost: number | null
+  expiryDate: string | null
+  lowStockThreshold: number
+}
 
-  const batchSize = batchSizeText ? Number(batchSizeText) : null
-  const batchPrice = batchPriceText ? Number(batchPriceText) : null
-
-  if (!batchUnitText) {
-    throw new Error('Batch Unit is required when Sellable Wholesale is true.')
+// Blank cells preserve the existing value on update (same convention the
+// Stock columns already use) — not a silent wipe on a partial re-import
+// that only meant to touch a few rows/columns.
+function resolveOptionalFields (
+  brandText: string,
+  descriptionText: string,
+  costText: string,
+  expiryDateText: string,
+  lowStockThresholdText: string,
+  existing: InventoryProduct | undefined,
+): OptionalFields {
+  const brand = brandText || existing?.brand || null
+  const description = descriptionText || existing?.description || ''
+  const cost = costText ? Number(costText) : (existing?.cost ?? null)
+  if (cost !== null && (!Number.isFinite(cost) || cost < 0)) {
+    throw new Error('Cost must be a non-negative number.')
   }
-  const batchUnitId = batchUnitIdByName.get(batchUnitText.trim().toLowerCase())
-  if (!batchUnitId) {
-    throw new Error(`Unknown batch unit "${batchUnitText}".`)
+  const expiryDate = expiryDateText || existing?.expiryDate || null
+  const lowStockThreshold = lowStockThresholdText
+    ? Number(lowStockThresholdText)
+    : (existing?.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD)
+  if (!Number.isInteger(lowStockThreshold) || lowStockThreshold < 0) {
+    throw new Error('Low Stock Threshold must be a non-negative whole number.')
   }
-  if (batchSize === null || !Number.isInteger(batchSize) || batchSize < 1) {
-    throw new Error('Batch Size must be a whole number of at least 1.')
-  }
-  if (batchPrice === null || !Number.isFinite(batchPrice) || batchPrice < 0) {
-    throw new Error('Batch Price must be a non-negative number.')
-  }
-
-  return { batchUnitId, batchSize, batchPrice }
+  return { brand, description, cost, expiryDate, lowStockThreshold }
 }
 
 function parseRowStocks (
@@ -396,8 +404,6 @@ export async function importInventoryFromExcel (
       const barcode = text(row, 'Barcode')
       const categoryName = text(row, 'Category')
       const price = Number(text(row, 'Price'))
-      const sellableRetail = parseBoolean(text(row, 'Sellable Retail'), true)
-      const sellableWholesale = parseBoolean(text(row, 'Sellable Wholesale'), false)
 
       if (!code) {
         throw new Error('Code is required.')
@@ -416,19 +422,19 @@ export async function importInventoryFromExcel (
       if (!Number.isFinite(price) || price < 0) {
         throw new Error('Price must be a non-negative number.')
       }
-      if (!sellableRetail && !sellableWholesale) {
-        throw new Error('At least one of Sellable Retail / Sellable Wholesale must be true.')
-      }
 
-      const { batchUnitId, batchSize, batchPrice } = parseBatchFields(
-        sellableWholesale,
-        text(row, 'Batch Unit'),
-        text(row, 'Batch Size'),
-        text(row, 'Batch Price'),
-        batchUnitIdByName,
-      )
+      const batchUnitId = resolveUnitId(text(row, 'Unit'), batchUnitIdByName)
 
       const existing = existingByCode.get(code.trim().toLowerCase())
+      const { brand, description, cost, expiryDate, lowStockThreshold } = resolveOptionalFields(
+        text(row, 'Brand'),
+        text(row, 'Description'),
+        text(row, 'Cost'),
+        text(row, 'Expiry Date'),
+        text(row, 'Low Stock Threshold'),
+        existing,
+      )
+
       const stocks = parseRowStocks(row, branches, stockColumnByBranchId, existing)
       const image = await resolveRowImage(workbook, imageByRow.get(rowNumber), existing?.image ?? '')
 
@@ -438,15 +444,16 @@ export async function importInventoryFromExcel (
         barcode,
         categoryId,
         // Not a column in the workbook — preserved from the existing row on
-        // update (same as batchUnitName/batchUnitUnit elsewhere), null for
-        // a genuinely new product until assigned from Configuration > Products.
+        // update (same as batchUnitName elsewhere), null for a genuinely new
+        // product until assigned from Configuration > Products.
         supplierId: existing?.supplierId ?? null,
-        price,
+        description,
+        brand,
+        expiryDate,
+        lowStockThreshold,
         batchUnitId,
-        batchSize,
-        batchPrice,
-        sellableRetail,
-        sellableWholesale,
+        price,
+        cost,
         image,
       }
 
